@@ -201,129 +201,28 @@ Lớp:                  & 23KDL \\
 }
 \listoffigures
 \listoftables
-\section*{Tóm tắt}\label{tuxf3m-tux1eaft}
-\addcontentsline{toc}{section}{Tóm tắt}
+\section{Mục tiêu và môi trường}\label{sec:l02-intro}
 
-Bài thực hành viết mapper và reducer bằng Python rồi chạy qua Hadoop
-Streaming trên cluster Hadoop dựng từ L01 (một NameNode, ba DataNode,
-ResourceManager, NodeManager, JobHistory Server). Có hai bài toán. Bài
-thứ nhất đếm từ trên bốn cuốn sách Project Gutenberg (khoảng 2.6 MB).
-Bài thứ hai đếm số chuyến taxi theo khu vực đón khách trên 1,000,000
-dòng NYC Yellow Taxi tháng 01/2024 (92.8 MB), trong đó mã khu vực được
-đổi sang tên bằng map-side join với bảng tra cứu 265 dòng. Mọi chương
-trình đều được thử bằng đường ống Unix trước khi đưa lên YARN. Thí
-nghiệm chính chạy cùng một job hai lần, có và không có combiner.
-Combiner giảm \texttt{Reduce\ shuffle\ bytes}\allowbreak{} khoảng 754
-lần, số bản ghi vào reducer từ 1,000,000 xuống 1,382, và kết quả hai lần
-chạy giống hệt nhau. Tuy vậy job có combiner lại chậm hơn khoảng 3 s, vì
-trên một máy shuffle gần như không tốn gì. Ở phần mở rộng, chúng tôi
-tính giá cước trung bình theo khu vực bằng một combiner dạng
-\texttt{(sum,\ count)}. Kết quả khớp với lần chạy không có combiner.
+Bài thực hành viết mapper và reducer bằng Python, thử bằng đường ống
+Unix
+\texttt{cat\ \textbar{}\ mapper\ \textbar{}\ sort\ \textbar{}\ reducer}\allowbreak{},
+rồi chạy trên YARN qua Hadoop Streaming {[}2{]}. Có hai bài toán: đếm từ
+trên bốn cuốn sách Project Gutenberg, và đếm số chuyến taxi theo khu vực
+đón khách, trong đó mã khu vực được đổi sang tên bằng map-side join qua
+distributed cache (\texttt{-files}). Thí nghiệm chính so sánh counter
+của cùng một job khi có và không có combiner. Sau đó các job được xem
+lại trên ResourceManager UI (cổng 8088), JobHistory UI (cổng 19888) và
+CLI. Phần mở rộng tính giá cước trung bình theo khu vực.
 
-\textbf{Từ khóa:} MapReduce, Hadoop Streaming, YARN, shuffle, combiner,
-map-side join, counter, JobHistory.
-
-\section{Giới thiệu}\label{sec:l02-intro}
-
-MapReduce {[}1{]} tách việc xử lý dữ liệu lớn thành hai hàm do người lập
-trình viết, \texttt{map} và \texttt{reduce}. Phần còn lại do framework
-lo: chia dữ liệu, lập lịch, chuyển dữ liệu trung gian giữa các nút và
-chạy lại task lỗi. Ngày nay pipeline mới phần lớn viết bằng Spark, nhưng
-chuỗi map, shuffle/sort, reduce và ý tưởng gộp cục bộ vẫn còn nguyên, ví
-dụ bước \texttt{HashAggregate\ (partial)}\allowbreak{} trong kế hoạch
-thực thi Spark SQL {[}6{]}. Đọc counter của một job MapReduce là cách dễ
-nhất để thấy shuffle thực sự tốn bao nhiêu.
-
-Bài thực hành có các mục tiêu sau:
-
-\begin{enumerate}
-\def\labelenumi{\arabic{enumi}.}
-\tightlist
-\item
-  Viết mapper và reducer bằng Python, kiểm thử cục bộ bằng đường ống
-  \texttt{cat\ \textbar{}\ mapper\ \textbar{}\ sort\ \textbar{}\ reducer}\allowbreak{}.
-\item
-  Chạy chương trình trên YARN bằng Hadoop Streaming và đọc job counter.
-\item
-  Đếm số chuyến theo khu vực đón khách, kèm map-side join qua
-  distributed cache (tùy chọn \texttt{-files}).
-\item
-  Đo tác động của combiner lên
-  \texttt{Map\ output\ materialized\ bytes}\allowbreak{} và
-  \texttt{Reduce\ shuffle\ bytes}\allowbreak{}.
-\item
-  Xem lại các job trên YARN ResourceManager UI (cổng 8088) và JobHistory
-  UI (cổng 19888).
-\end{enumerate}
-
-\section{Cơ sở lý thuyết}\label{sec:l02-theory}
-
-\subsection{Mô hình MapReduce}\label{muxf4-huxecnh-mapreduce}
-
-Theo Dean và Ghemawat {[}1{]}, hàm \texttt{map} biến mỗi bản ghi đầu vào
-thành không, một hoặc nhiều cặp khóa--giá trị trung gian. Framework nhóm
-các giá trị cùng khóa và gọi \texttt{reduce} một lần cho mỗi khóa. Đầu
-vào được chia thành các \emph{input split}. Với tệp trên HDFS, mặc định
-mỗi block là một split, và mỗi split do một map task xử lý. Số reduce
-task thì người dùng tự đặt qua
-\texttt{mapreduce.}\allowbreak{}\texttt{job.}\allowbreak{}\texttt{reduces}\allowbreak{},
-mặc định là 1 {[}4{]}, {[}7{]}.
-
-\subsection{Shuffle và sort}\label{shuffle-vuxe0-sort}
-
-Đầu ra của mỗi map task được phân vùng theo khóa (mặc định dùng
-\texttt{HashPartitioner}), sắp xếp và ghi ra đĩa cục bộ. Sau đó các
-reducer kéo dữ liệu về qua HTTP rồi merge-sort. Giai đoạn này là
-shuffle. Nó bảo đảm mỗi reducer nhận khóa theo thứ tự, nên các bản ghi
-cùng khóa luôn nằm liền nhau {[}4{]}. Shuffle dùng cả đĩa, mạng và sắp
-xếp, nên thường là phần đắt nhất của job.
-
-\subsection{Hadoop Streaming}\label{hadoop-streaming}
-
-Hadoop Streaming {[}2{]} cho phép bất kỳ chương trình thực thi nào làm
-mapper hoặc reducer. Bản ghi đi vào qua stdin dưới dạng dòng văn bản,
-còn chương trình in \texttt{key\textless{}TAB\textgreater{}value} ra
-stdout. Reducer trong API Java nhận sẵn
-\texttt{(key,}\allowbreak{}\texttt{\ Iterable\textless{}values\textgreater{})}\allowbreak{},
-nhưng reducer Streaming chỉ thấy một luồng dòng đã sắp xếp và phải tự
-nhận ra chỗ đổi khóa. Muốn tăng counter tùy biến thì ghi dòng
-\texttt{reporter:}\allowbreak{}\texttt{counter:}\allowbreak{}\texttt{\textless{}group\textgreater{},}\allowbreak{}\texttt{\textless{}counter\textgreater{},}\allowbreak{}\texttt{\textless{}amount\textgreater{}}\allowbreak{}
-ra stderr.
-
-\subsection{Combiner}\label{combiner}
-
-Combiner là một reducer thu nhỏ, chạy trên đầu ra của từng map task
-trước khi shuffle. Hadoop có thể gọi combiner 0, 1 hay nhiều lần. Vì vậy
-hàm gộp phải có tính kết hợp và giao hoán, và đầu ra phải cùng định dạng
-với đầu vào {[}1{]}, {[}4{]}. Phép cộng thỏa điều kiện này nên reducer
-đếm dùng lại được làm combiner. Phép lấy trung bình thì không.
-
-\subsection{Map-side join và distributed
-cache}\label{map-side-join-vuxe0-distributed-cache}
-
-Nếu một bên của phép nối đủ nhỏ, có thể gửi nó tới mọi task qua
-distributed cache, nạp vào bộ nhớ rồi tra cứu ngay trong mapper. Phép
-nối xong ở pha map và bên lớn không phải shuffle theo khóa nối. Khi cả
-hai bên đều lớn thì phải dùng \emph{reduce-side join}, tức shuffle cả
-hai tập theo khóa {[}4{]}, {[}5{]}. Spark gọi kỹ thuật thứ nhất là
-broadcast join {[}6{]}.
-
-\subsection{YARN và JobHistory}\label{yarn-vuxe0-jobhistory}
-
-YARN {[}3{]} tách quản lý tài nguyên (ResourceManager, NodeManager) khỏi
-logic của từng ứng dụng (ApplicationMaster). Mỗi map hoặc reduce task
-chạy trong một container. Khi job kết thúc, JobHistory Server lưu lại
-counter, cấu hình và log của các task.
-
-\section{Môi trường và phương pháp thực nghiệm}\label{sec:l02-method}
-
-\subsection{Môi trường}\label{muxf4i-trux1b0ux1eddng}
-
-Bài này dùng lại cluster Docker của L01. Thư mục bài được gắn vào
-\texttt{/lab/L02} trong các container Hadoop, và mọi lệnh chạy trong
-container \texttt{namenode} vì container này có sẵn \texttt{python3}.
-Streaming cần trình thông dịch có mặt trên nút chạy task. Cấu hình xem ở
-Bảng~\ref{tbl:l02-env}.
+Bài dùng lại cluster Docker của L01 (Bảng~\ref{tbl:l02-env}). Thư mục
+bài được gắn vào \texttt{/lab/L02}, mọi lệnh chạy trong container
+\texttt{namenode} vì Streaming cần \texttt{python3} có mặt trên nút chạy
+task. Dữ liệu ở Bảng~\ref{tbl:l02-data}: bốn cuốn sách có mã 1342, 11,
+84 và 2701, và 1,000,000 dòng đầu của tệp Parquet
+\texttt{yellow\_}\allowbreak{}\texttt{tripdata\_}\allowbreak{}\texttt{2024-01}\allowbreak{},
+chuyển sang CSV không tiêu đề bằng
+\texttt{parquet\_}\allowbreak{}\texttt{to\_}\allowbreak{}\texttt{csv.}\allowbreak{}\texttt{py}\allowbreak{}
+vì Streaming chỉ đọc văn bản.
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
@@ -361,18 +260,6 @@ Lịch sử job & JobHistory Server, cổng 19888; ResourceManager UI cổng
 Ngôn ngữ mapper/reducer & Python 3, chạy qua
 \texttt{hadoop-streaming-*.}\allowbreak{}\texttt{jar}\allowbreak{} \\
 \end{longtable}
-
-\subsection{Dữ liệu}\label{dux1eef-liux1ec7u}
-
-Bảng~\ref{tbl:l02-data} liệt kê dữ liệu đã dùng. Bộ sách gồm bốn cuốn
-Project Gutenberg có mã 1342, 11, 84 và 2701. Dữ liệu taxi là 1,000,000
-dòng đầu của tệp Parquet
-\texttt{yellow\_}\allowbreak{}\texttt{tripdata\_}\allowbreak{}\texttt{2024-01}\allowbreak{}.
-Streaming chỉ đọc văn bản nên chúng tôi dùng
-\texttt{parquet\_}\allowbreak{}\texttt{to\_}\allowbreak{}\texttt{csv.}\allowbreak{}\texttt{py}\allowbreak{}
-để chuyển sang CSV không có dòng tiêu đề. Bảng
-\texttt{taxi\_}\allowbreak{}\texttt{zone\_}\allowbreak{}\texttt{lookup.}\allowbreak{}\texttt{csv}\allowbreak{}
-ánh xạ \texttt{LocationID} sang \texttt{Borough/Zone}.
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
@@ -418,77 +305,24 @@ block 16 MB, 6 block \\
 & nhỏ & 265 dòng & gửi qua \texttt{-files} \\
 \end{longtable}
 
-Tệp CSV được đưa lên với block 16 MB để job có nhiều split hơn. Theo
-tính toán, số block là
-\(\lceil 92{,}847{,}108 / 16{,}777{,}216 \rceil = \lceil 5.53 \rceil = 6\),
-đúng với kết quả \texttt{hdfs\ fsck}.
+\section{Thực hiện và kết quả}\label{sec:l02-results}
 
-\subsection{Quy trình}\label{quy-truxecnh}
+\subsection{Đếm từ, kiểm thử cục bộ}\label{sec:l02-wc-local}
 
-\begin{enumerate}
-\def\labelenumi{\arabic{enumi}.}
-\tightlist
-\item
-  Viết mapper và reducer đếm từ, thử bằng đường ống Unix có và không có
-  \texttt{sort}.
-\item
-  Đưa sách lên HDFS, chạy job \texttt{wordcount} bằng Streaming với
-  \texttt{-files\ mapper.}\allowbreak{}\texttt{py,}\allowbreak{}\texttt{reducer.}\allowbreak{}\texttt{py}\allowbreak{}.
-\item
-  Chuyển 1,000,000 dòng taxi sang CSV, đưa lên HDFS với
-  \texttt{-D\ dfs.}\allowbreak{}\texttt{blocksize=}\allowbreak{}\texttt{16m}\allowbreak{},
-  kiểm tra số block bằng \texttt{hdfs\ fsck}.
-\item
-  Viết \texttt{zones/mapper.py}. Mapper nạp bảng tra cứu, đếm dòng hỏng
-  và phát cặp \texttt{zone\textbackslash{}t1}. Thử cục bộ trên 1,000
-  dòng.
-\item
-  Chạy job đếm theo khu vực hai lần, đều với
-  \texttt{-D\ mapreduce.}\allowbreak{}\texttt{job.}\allowbreak{}\texttt{reduces=}\allowbreak{}\texttt{2}\allowbreak{}
-  và chỉ khác nhau ở \texttt{-combiner}. Sau đó so counter và
-  \texttt{diff} hai đầu ra.
-\item
-  Xem các job trên YARN UI, JobHistory UI và bằng CLI
-  (\texttt{yarn\ application\ -list}\allowbreak{},
-  \texttt{mapred\ job\ -list\ all}\allowbreak{}).
-\item
-  Mở rộng: tính giá cước trung bình theo khu vực với combiner
-  \texttt{(sum,\ count)}.
-\end{enumerate}
-
-Lệnh chạy bản có combiner như dưới đây. Bản không combiner chỉ bỏ dòng
-\texttt{-combiner}.
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\ExtensionTok{hadoop}\NormalTok{ jar }\VariableTok{$STREAM} \AttributeTok{{-}D}\NormalTok{ mapreduce.job.name=zones\_combiner }\AttributeTok{{-}D}\NormalTok{ mapreduce.job.reduces=2 }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}files}\NormalTok{ mapper.py,reducer.py,/datasets/data/taxi/taxi\_zone\_lookup.csv }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}mapper} \StringTok{"python3 mapper.py"} \AttributeTok{{-}combiner} \StringTok{"python3 reducer.py"} \AttributeTok{{-}reducer} \StringTok{"python3 reducer.py"} \DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}input}\NormalTok{ /user/root/taxi\_csv }\AttributeTok{{-}output}\NormalTok{ /user/root/zones\_out\_combiner}
-\end{Highlighting}
-\end{Shaded}
-
-Thời gian wall-clock của job taxi được tính bằng hiệu thời điểm giữa
-dòng log \texttt{Running\ job} và dòng
-\texttt{completed\ successfully}\allowbreak{} của job đó, không dùng
-lệnh \texttt{time}. Cách này bỏ qua phần khởi động client.
-
-\section{Kết quả thực nghiệm}\label{sec:l02-results}
-
-\subsection{Đếm từ, kiểm thử cục
-bộ}\label{ux111ux1ebfm-tux1eeb-kiux1ec3m-thux1eed-cux1ee5c-bux1ed9}
-
-Mapper đổi văn bản sang chữ thường rồi lấy từ theo biểu thức
-\texttt{{[}a-z{]}{[}a-z\textquotesingle{}{]}*}. Với đầu vào
-\texttt{Hadoop\textquotesingle{}s\ HDFS,}\allowbreak{}\texttt{\ hadoop!}\allowbreak{},
-mapper in ra ba cặp \texttt{hadoop\textquotesingle{}s\ 1},
-\texttt{hdfs\ 1}, \texttt{hadoop\ 1}. Chạy cả đường ống trên bốn cuốn
-sách, năm từ nhiều nhất là \texttt{the\ 25806}, \texttt{and\ 14340},
-\texttt{of\ 14113}, \texttt{to\ 12103} và \texttt{a\ 9045}. Khi bỏ
-\texttt{sort} khỏi đường ống, reducer in ra 25,805 dòng bắt đầu bằng
-\texttt{the} thay vì một dòng tổng (Hình~\ref{fig:l02-local-pipe}). Con
-số này gần bằng tổng số lần xuất hiện, tức gần như lần nào cũng thành
-một nhóm riêng. Chỉ những chỗ \texttt{the} tình cờ đứng liền nhau mới
+Với Streaming, mapper và reducer đọc dòng văn bản từ stdin và in
+\texttt{key\textless{}TAB\textgreater{}value} ra stdout. Mapper đổi văn
+bản sang chữ thường rồi lấy từ theo biểu thức
+\texttt{{[}a-z{]}{[}a-z\textquotesingle{}{]}*}; với đầu vào
+\texttt{Hadoop\textquotesingle{}s\ HDFS,}\allowbreak{}\texttt{\ hadoop!}\allowbreak{}
+nó in ra ba cặp \texttt{hadoop\textquotesingle{}s\ 1}, \texttt{hdfs\ 1},
+\texttt{hadoop\ 1}. Reducer tự nhận ra chỗ đổi khóa trên luồng đã sắp
+xếp và in thêm khóa cuối sau vòng lặp (xem Phụ lục). Chạy cả đường ống
+trên bốn cuốn sách, năm từ nhiều nhất là \texttt{the\ 25806},
+\texttt{and\ 14340}, \texttt{of\ 14113}, \texttt{to\ 12103} và
+\texttt{a\ 9045}, đúng giá trị đề bài cho. Khi bỏ \texttt{sort}, reducer
+in ra 25,805 dòng bắt đầu bằng \texttt{the} thay vì một dòng tổng
+(Hình~\ref{fig:l02-local-pipe}): gần như lần xuất hiện nào cũng thành
+một nhóm riêng, chỉ những chỗ \texttt{the} tình cờ đứng liền nhau mới
 được gộp.
 
 \begin{figure}
@@ -500,16 +334,20 @@ trên bốn cuốn sách: top 5 từ và số dòng \texttt{the} khi bỏ
 \texttt{sort}.}\label{fig:l02-local-pipe}
 \end{figure}
 
-\subsection{Đếm từ trên YARN}\label{ux111ux1ebfm-tux1eeb-truxean-yarn}
+\subsection{Đếm từ trên YARN}\label{sec:l02-wc-yarn}
 
-Job \texttt{wordcount}
+Sách được đưa lên
+\texttt{/}\allowbreak{}\texttt{user/}\allowbreak{}\texttt{root/}\allowbreak{}\texttt{books}\allowbreak{}
+và job chạy bằng \texttt{hadoop\ jar\ \$STREAM}\allowbreak{} với
+\texttt{-files\ mapper.}\allowbreak{}\texttt{py,}\allowbreak{}\texttt{reducer.}\allowbreak{}\texttt{py}\allowbreak{}
+để gửi script tới thư mục làm việc của từng task. Job \texttt{wordcount}
 (\texttt{job\_}\allowbreak{}\texttt{1793355278127\_}\allowbreak{}\texttt{0001}\allowbreak{})
 chạy thành công với
-\texttt{number\ of\ splits:}\allowbreak{}\texttt{4}\allowbreak{}.
-Counter xem ở Bảng~\ref{tbl:l02-wc} và Hình~\ref{fig:l02-wc-yarn}. Mỗi
-cuốn sách nhỏ hơn một block nên được một split. Vì vậy job có 4 map task
-và 1 reduce task theo mặc định. Số khóa vào reducer bằng số dòng đầu ra,
-và top 5 đọc từ HDFS giống bản chạy cục bộ.
+\texttt{number\ of\ splits:}\allowbreak{}\texttt{4}\allowbreak{}: mỗi
+cuốn sách nhỏ hơn một block nên được một split, vì vậy có 4 map task và
+1 reduce task theo mặc định (Bảng~\ref{tbl:l02-wc},
+Hình~\ref{fig:l02-wc-yarn}). Số khóa vào reducer bằng số dòng đầu ra, và
+top 5 đọc từ HDFS giống bản chạy cục bộ.
 
 \begin{longtable}[]{@{}ll@{}}
 \caption{\label{tbl:l02-wc}Counter của job đếm từ trên
@@ -543,13 +381,24 @@ Thời gian lệnh (\texttt{real}) & 23.572 s \\
 và top 5 từ đọc từ HDFS.}\label{fig:l02-wc-yarn}
 \end{figure}
 
-\subsection{Dữ liệu taxi và map-side join cục
-bộ}\label{dux1eef-liux1ec7u-taxi-vuxe0-map-side-join-cux1ee5c-bux1ed9}
+\subsection{Chuẩn bị dữ liệu taxi và map-side join}\label{sec:l02-zones}
 
-\texttt{hdfs\ fsck} báo
+Tệp CSV được đưa lên bằng
+\texttt{hdfs\ dfs\ -D\ dfs.}\allowbreak{}\texttt{blocksize=}\allowbreak{}\texttt{16m\ -put}\allowbreak{}
+để job có nhiều split hơn. Số block dự kiến là
+\(\lceil 92{,}847{,}108 / 16{,}777{,}216 \rceil = \lceil 5.53 \rceil = 6\),
+và \texttt{hdfs\ fsck} báo đúng
 \texttt{92847108\ bytes,}\allowbreak{}\texttt{\ replicated:}\allowbreak{}\texttt{\ replication=}\allowbreak{}\texttt{3,}\allowbreak{}\texttt{\ 6\ block(s):}\allowbreak{}\texttt{\ OK}\allowbreak{}.
-Lúc thử mapper khu vực ở máy cục bộ, mapper chưa đọc được bảng tra cứu
-vì \texttt{-files} chỉ có tác dụng trên cluster. Chúng tôi chép
+
+Mapper khu vực nạp
+\texttt{taxi\_}\allowbreak{}\texttt{zone\_}\allowbreak{}\texttt{lookup.}\allowbreak{}\texttt{csv}\allowbreak{}
+vào một \texttt{dict} rồi đổi \texttt{PULocationID} thành
+\texttt{Borough/Zone} ngay khi đọc từng chuyến, nên bảng lớn không phải
+shuffle theo khóa nối. Dòng hỏng không làm mapper dừng mà được đếm bằng
+cách ghi
+\texttt{reporter:}\allowbreak{}\texttt{counter:}\allowbreak{}\texttt{TaxiLab,}\allowbreak{}\texttt{BAD\_}\allowbreak{}\texttt{RECORDS,}\allowbreak{}\texttt{1}\allowbreak{}
+ra stderr. Lúc thử cục bộ, mapper chưa đọc được bảng tra cứu vì
+\texttt{-files} chỉ có tác dụng trên cluster, nên chúng tôi chép
 \texttt{taxi\_}\allowbreak{}\texttt{zone\_}\allowbreak{}\texttt{lookup.}\allowbreak{}\texttt{csv}\allowbreak{}
 vào thư mục hiện hành để giả lập distributed cache. Trên 1,000 dòng đầu,
 ba khu vực nhiều chuyến nhất là
@@ -557,13 +406,11 @@ ba khu vực nhiều chuyến nhất là
 \texttt{Manhattan/}\allowbreak{}\texttt{Lincoln\ Square\ East\ 55}\allowbreak{}
 và
 \texttt{Manhattan/}\allowbreak{}\texttt{Upper\ West\ Side\ South\ 45}\allowbreak{}.
-Tiếp theo chúng tôi đưa vào hai dòng hỏng, một dòng \texttt{garbage} và
-một dòng có \texttt{PULocationID} không phải số. Mapper không dừng lỗi
-mà ghi đúng hai dòng
-\texttt{reporter:}\allowbreak{}\texttt{counter:}\allowbreak{}\texttt{TaxiLab,}\allowbreak{}\texttt{BAD\_}\allowbreak{}\texttt{RECORDS,}\allowbreak{}\texttt{1}\allowbreak{}
+Khi đưa vào hai dòng hỏng (một dòng \texttt{garbage}, một dòng có
+\texttt{PULocationID} không phải số), mapper ghi đúng hai dòng counter
 ra stderr (Hình~\ref{fig:l02-taxi-local}). Dữ liệu thật không có dòng
-hỏng nào. Vì thế nhóm counter \texttt{TaxiLab} không xuất hiện trong các
-job trên cluster, và \texttt{Map\ input\ records}\allowbreak{} bằng
+hỏng nào, nên nhóm \texttt{TaxiLab} không xuất hiện trong các job trên
+cluster và \texttt{Map\ input\ records}\allowbreak{} bằng
 \texttt{Map\ output\ records}\allowbreak{}.
 
 \begin{figure}
@@ -574,17 +421,35 @@ map-side join trên 1,000 dòng và counter
 \texttt{BAD\_RECORDS}.}\label{fig:l02-taxi-local}
 \end{figure}
 
-\subsection{Có và không có
-combiner}\label{cuxf3-vuxe0-khuxf4ng-cuxf3-combiner}
+\subsection{Có và không có combiner}\label{sec:l02-combiner}
 
-Hai job \texttt{zones\_}\allowbreak{}\texttt{nocombiner}\allowbreak{}
+Combiner là một reducer thu nhỏ chạy trên đầu ra từng map task trước
+shuffle. Hadoop có thể gọi nó 0, 1 hay nhiều lần, nên hàm gộp phải có
+tính kết hợp, giao hoán và giữ nguyên định dạng {[}1{]}, {[}3{]}. Phép
+cộng thỏa điều kiện này nên reducer đếm được dùng lại làm combiner. Hai
+job chạy liền nhau, cùng đầu vào, cùng
+\texttt{-D\ mapreduce.}\allowbreak{}\texttt{job.}\allowbreak{}\texttt{reduces=}\allowbreak{}\texttt{2}\allowbreak{},
+chỉ khác dòng \texttt{-combiner}:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\ExtensionTok{hadoop}\NormalTok{ jar }\VariableTok{$STREAM} \AttributeTok{{-}D}\NormalTok{ mapreduce.job.name=zones\_combiner }\AttributeTok{{-}D}\NormalTok{ mapreduce.job.reduces=2 }\DataTypeTok{\textbackslash{}}
+  \AttributeTok{{-}files}\NormalTok{ mapper.py,reducer.py,/datasets/data/taxi/taxi\_zone\_lookup.csv }\DataTypeTok{\textbackslash{}}
+  \AttributeTok{{-}mapper} \StringTok{"python3 mapper.py"} \AttributeTok{{-}combiner} \StringTok{"python3 reducer.py"} \AttributeTok{{-}reducer} \StringTok{"python3 reducer.py"} \DataTypeTok{\textbackslash{}}
+  \AttributeTok{{-}input}\NormalTok{ /user/root/taxi\_csv }\AttributeTok{{-}output}\NormalTok{ /user/root/zones\_out\_combiner}
+\end{Highlighting}
+\end{Shaded}
+
+Bảng~\ref{tbl:l02-combiner} gồm các counter đề bài yêu cầu cho
+\texttt{zones\_}\allowbreak{}\texttt{nocombiner}\allowbreak{}
 (\texttt{job\_}\allowbreak{}\texttt{1793355278127\_}\allowbreak{}\texttt{0002}\allowbreak{})
 và \texttt{zones\_combiner}
-(\texttt{job\_}\allowbreak{}\texttt{1793355278127\_}\allowbreak{}\texttt{0003}\allowbreak{})
-chạy liền nhau, cùng đầu vào và cùng 2 reducer.
-Bảng~\ref{tbl:l02-combiner} gồm các counter đề bài yêu cầu.
+(\texttt{job\_}\allowbreak{}\texttt{1793355278127\_}\allowbreak{}\texttt{0003}\allowbreak{});
 Bảng~\ref{tbl:l02-combiner-extra} gồm thêm vài counter lấy từ log đầy
-đủ.
+đủ. Wall-clock được tính bằng hiệu thời điểm giữa dòng log
+\texttt{Running\ job} và dòng
+\texttt{completed\ successfully}\allowbreak{}, không dùng lệnh
+\texttt{time}, nên không gồm phần khởi động client.
 
 \begin{longtable}[]{@{}lll@{}}
 \caption{\label{tbl:l02-combiner}So sánh counter giữa hai lần chạy không
@@ -643,27 +508,26 @@ khách; \texttt{diff} giữa hai đầu ra cho kết quả
 IDENTICAL.}\label{fig:l02-combiner-cli}
 \end{figure}
 
-Mapper sinh ra cùng một lượng dữ liệu ở cả hai lần, vì
-\texttt{Map\ output\ bytes}\allowbreak{} không đổi. Combiner thu gọn dữ
-liệu đó trước khi ghi đĩa và shuffle. Lượng shuffle giảm
-\(31{,}039{,}071 / 41{,}169 \approx 754\) lần, tức khoảng 99.9 \%. Số
-bản ghi tràn đĩa và số byte ghi đĩa cục bộ cũng giảm theo cùng cỡ. Cả
-hai lần chạy đều có 247 khu vực vào reducer, và \texttt{diff} hai đầu ra
-rỗng (Hình~\ref{fig:l02-combiner-cli}). Ba khu vực đứng đầu là
+\texttt{Map\ output\ bytes}\allowbreak{} không đổi, tức mapper sinh cùng
+lượng dữ liệu ở cả hai lần; combiner thu gọn nó trước khi ghi đĩa và
+shuffle. Lượng shuffle giảm \(31{,}039{,}071 / 41{,}169 \approx\)
+\textbf{754 lần} (khoảng 99.9 \%), số bản ghi tràn đĩa và số byte ghi
+đĩa cục bộ giảm cùng cỡ. Cả hai lần đều có 247 khu vực vào reducer và
+\texttt{diff} hai đầu ra rỗng (Hình~\ref{fig:l02-combiner-cli}). Ba khu
+vực đứng đầu là
 \texttt{Queens/}\allowbreak{}\texttt{JFK\ Airport\ 59777}\allowbreak{},
 \texttt{Manhattan/}\allowbreak{}\texttt{Midtown\ Center\ 48750}\allowbreak{}
 và
 \texttt{Manhattan/}\allowbreak{}\texttt{Upper\ East\ Side\ South\ 47260}\allowbreak{}.
 
 Riêng thời gian thì ngược với dự đoán: bản có combiner chậm hơn 3.0 s.
-Tổng thời gian map task gần như không đổi, chỉ có thời gian reduce giảm.
-Lần chạy không combiner có
-\texttt{Killed\ reduce\ tasks=}\allowbreak{}\texttt{1}\allowbreak{}. Đây
-là một attempt reduce bị hủy, còn cả hai reduce task vẫn chạy xong, nên
-kết quả không bị ảnh hưởng.
+Tổng thời gian map gần như không đổi, chỉ thời gian reduce giảm. Lần
+chạy không combiner có
+\texttt{Killed\ reduce\ tasks=}\allowbreak{}\texttt{1}\allowbreak{}; đây
+là một attempt reduce bị hủy, cả hai reduce task vẫn chạy xong nên kết
+quả không bị ảnh hưởng.
 
-\subsection{Giao diện YARN, JobHistory và
-CLI}\label{giao-diux1ec7n-yarn-jobhistory-vuxe0-cli}
+\subsection{Giao diện YARN, JobHistory và CLI}\label{sec:l02-ui}
 
 ResourceManager UI liệt kê 3 ứng dụng đã xong (\texttt{wordcount},
 \texttt{zones\_}\allowbreak{}\texttt{nocombiner}\allowbreak{},
@@ -687,12 +551,11 @@ thành.}\label{fig:l02-ui-history}
 
 Trang tổng quan của
 \texttt{job\_}\allowbreak{}\texttt{1793355278127\_}\allowbreak{}\texttt{0003}\allowbreak{}
-(Hình~\ref{fig:l02-ui-overview}) ghi các thông tin sau: SUCCEEDED, không
-chạy chế độ uber, Elapsed 24 s, map trung bình 2 s, shuffle trung bình 5
-s. Cả 6 map và 2 reduce đều thành công, không có attempt nào lỗi hay bị
-hủy. Elapsed tính từ lúc job bắt đầu chạy nên ngắn hơn con số wall-clock
-ở Bảng~\ref{tbl:l02-combiner}. Con số wall-clock còn gồm thời gian chờ
-ApplicationMaster khởi động.
+(Hình~\ref{fig:l02-ui-overview}) ghi SUCCEEDED, không chạy chế độ uber,
+Elapsed 24 s, map trung bình 2 s, shuffle trung bình 5 s; cả 6 map và 2
+reduce đều thành công, không attempt nào lỗi hay bị hủy. Elapsed ngắn
+hơn wall-clock ở Bảng~\ref{tbl:l02-combiner} vì wall-clock còn gồm thời
+gian chờ ApplicationMaster khởi động.
 
 \begin{figure}
 \centering
@@ -703,10 +566,6 @@ task, 2 reduce task và thời gian từng pha.}\label{fig:l02-ui-overview}
 
 Trang Counters của hai job (Hình~\ref{fig:l02-ui-counters-nc},
 Hình~\ref{fig:l02-ui-counters-c}) cho đúng các giá trị in trên console.
-Trên hai trang này có thể so trực tiếp
-\texttt{Combine\ output\ records}\allowbreak{},
-\texttt{Map\ output\ materialized\ bytes}\allowbreak{} và
-\texttt{Reduce\ shuffle\ bytes}\allowbreak{}.
 
 \begin{figure}
 \centering
@@ -725,7 +584,7 @@ combiner.}\label{fig:l02-ui-counters-c}
 Trên dòng lệnh,
 \texttt{yarn\ application\ -list\ -appStates\ FINISHED}\allowbreak{} cho
 3 ứng dụng có Final-State SUCCEEDED, với Tracking-URL trỏ tới
-\texttt{historyserver:}\allowbreak{}\texttt{19888}\allowbreak{}.
+\texttt{historyserver:}\allowbreak{}\texttt{19888}\allowbreak{}, và
 \texttt{mapred\ job\ -list\ all}\allowbreak{} báo \texttt{Total\ jobs:3}
 (Hình~\ref{fig:l02-yarn-cli}).
 
@@ -738,20 +597,20 @@ Trên dòng lệnh,
 \end{figure}
 
 \subsection{Mở rộng: giá cước trung bình theo khu
-vực}\label{mux1edf-rux1ed9ng-giuxe1-cux1b0ux1edbc-trung-buxecnh-theo-khu-vux1ef1c}
+vực}\label{sec:l02-avgfare}
 
 Mapper phát
 \texttt{zone\textbackslash{}t\textless{}fare\textgreater{},1}, trong đó
 \texttt{fare\_amount} là cột thứ 10. Combiner cộng dồn cặp
-\texttt{(sum,\ count)} và xuất ra đúng định dạng nó nhận vào. Reducer
-cộng tiếp và chỉ chia \texttt{sum/count} ở bước cuối. Job
+\texttt{(sum,\ count)} và xuất đúng định dạng nó nhận vào; reducer cộng
+tiếp và chỉ chia \texttt{sum/count} ở bước cuối. Job
 \texttt{job\_}\allowbreak{}\texttt{1793355278127\_}\allowbreak{}\texttt{0004}\allowbreak{}
 chạy xong với
 \texttt{Combine\ input\ records=}\allowbreak{}\texttt{1000000}\allowbreak{},
 \texttt{Combine\ output\ records=}\allowbreak{}\texttt{1382}\allowbreak{}
 và
-\texttt{Reduce\ shuffle\ bytes=}\allowbreak{}\texttt{56289}\allowbreak{}.
-Kết quả ở Bảng~\ref{tbl:l02-avgfare} và Hình~\ref{fig:l02-avgfare}.
+\texttt{Reduce\ shuffle\ bytes=}\allowbreak{}\texttt{56289}\allowbreak{}
+(Bảng~\ref{tbl:l02-avgfare}, Hình~\ref{fig:l02-avgfare}).
 
 \begin{longtable}[]{@{}lll@{}}
 \caption{\label{tbl:l02-avgfare}Giá cước trung bình
@@ -787,154 +646,129 @@ Manhattan/Upper West Side South & 13.36 & 30,849 \\
 combiner.}\label{fig:l02-avgfare}
 \end{figure}
 
-Để kiểm tra, chúng tôi tính lại JFK bằng bản cục bộ không combiner và
-cũng được 59.71 trên 59,777 chuyến. Số chuyến từng khu vực khớp với job
-đếm ở phần trước. Số bản ghi shuffle vẫn là 1,382, nhưng số byte nhiều
-hơn job đếm vì mỗi giá trị mang thêm một tổng số thực. Về nội dung, hai
-sân bay có giá trung bình cao hơn hẳn các khu vực Manhattan, do chuyến
-đi từ sân bay thường dài hơn.
+Tính lại JFK bằng bản cục bộ không combiner cũng được 59.71 trên 59,777
+chuyến, và số chuyến từng khu vực khớp với job đếm ở
+Mục~\ref{sec:l02-combiner}. Số bản ghi shuffle vẫn là 1,382 nhưng số
+byte nhiều hơn vì mỗi giá trị mang thêm một tổng số thực. Hai sân bay có
+giá trung bình cao hơn hẳn các khu vực Manhattan, do chuyến từ sân bay
+thường dài hơn.
 
-\section{Thảo luận}\label{sec:l02-discussion}
+\section{Trả lời câu hỏi checkpoint}\label{sec:l02-discussion}
 
 \subsection{Trong đường ống cục bộ, lệnh nào làm việc của shuffle, và
 thiếu nó thì sao?}\label{sec:l02-q1}
 
-Đó là lệnh \texttt{sort}. Nó đưa mọi dòng cùng khóa về cạnh nhau, giống
-bảo đảm mà shuffle cung cấp trên cluster (phân vùng theo khóa rồi
-merge-sort ở reducer). Không có \texttt{sort}, reducer gặp cùng một từ ở
-nhiều đoạn rời nhau và in nó ra nhiều lần với số đếm cục bộ. Đó là lý do
-\texttt{the} bị in 25,805 lần (Hình~\ref{fig:l02-local-pipe}).
+Lệnh \texttt{sort}. Trên cluster, shuffle phân vùng đầu ra map theo khóa
+rồi merge-sort ở reducer, nên các bản ghi cùng khóa luôn nằm liền nhau
+{[}3{]}; \texttt{sort} cho đúng bảo đảm đó. Không có nó, reducer gặp
+cùng một từ ở nhiều đoạn rời nhau và in ra nhiều lần với số đếm cục bộ,
+như các dòng \texttt{the} ở Hình~\ref{fig:l02-local-pipe}.
 
 \subsection{\texorpdfstring{Vì sao reducer Streaming phải tự giữ
 \texttt{current\_key}?}{Vì sao reducer Streaming phải tự giữ current\_key?}}\label{sec:l02-q2}
 
-Streaming chỉ đưa cho reducer các dòng văn bản đã sắp xếp. Khái niệm
-nhóm
+Streaming chỉ đưa cho reducer các dòng văn bản đã sắp xếp; nhóm
 \texttt{(key,}\allowbreak{}\texttt{\ Iterable\textless{}values\textgreater{})}\allowbreak{}
-chỉ có trong API Java. Vì vậy reducer Python phải so khóa hiện tại với
-\texttt{current\_key}, in tổng khi khóa đổi, và nhớ in khóa cuối cùng
-sau vòng lặp (Phụ lục B). Quên bước cuối thì mất từ cuối cùng. Reducer
-của bài không mắc lỗi này: \texttt{Reduce\ output\ records}\allowbreak{}
-bằng \texttt{Reduce\ input\ groups}\allowbreak{} ở
-Bảng~\ref{tbl:l02-wc}.
+chỉ có trong API Java {[}2{]}. Reducer Python phải so khóa với
+\texttt{current\_key}, in tổng khi khóa đổi và nhớ in khóa cuối sau vòng
+lặp (Phụ lục). Quên bước cuối thì mất từ cuối cùng. Reducer của bài
+không mắc lỗi này: \texttt{Reduce\ output\ records}\allowbreak{} bằng
+\texttt{Reduce\ input\ groups}\allowbreak{} ở Bảng~\ref{tbl:l02-wc}.
 
 \subsection{Job taxi có bao nhiêu map task, bao nhiêu reduce task, và vì
 sao?}\label{sec:l02-q3}
 
-Job taxi có \textbf{6 map task}. Tệp CSV nằm trong 6 block 16 MB và mỗi
-block là một split (log ghi
-\texttt{number\ of\ splits:}\allowbreak{}\texttt{6}\allowbreak{}). Job
-đếm từ chỉ có 4 map task vì mỗi cuốn sách nhỏ hơn một block. Số reduce
-task là 2 vì chúng tôi đặt
+Job taxi có 6 map task vì tệp CSV nằm trong 6 block 16 MB và mỗi block
+là một split (log ghi
+\texttt{number\ of\ splits:}\allowbreak{}\texttt{6}\allowbreak{},
+Mục~\ref{sec:l02-zones}); job đếm từ chỉ có 4 vì mỗi cuốn sách nhỏ hơn
+một block. Số reduce task là 2 vì chúng tôi đặt
 \texttt{-D\ mapreduce.}\allowbreak{}\texttt{job.}\allowbreak{}\texttt{reduces=}\allowbreak{}\texttt{2}\allowbreak{}.
-Con số này do người dùng chọn chứ không suy ra từ dữ liệu, và job đếm từ
-để mặc định là 1. Với 2 reducer, mỗi map task tạo hai phân vùng, nên
-\texttt{Shuffled\ Maps\ =}\allowbreak{}\texttt{\ 12}\allowbreak{}
-(\(6 \times 2\)) ở Bảng~\ref{tbl:l02-combiner-extra}. NodeManager chỉ
-chạy được hai task 384 MB cùng lúc, nên 6 map task chạy thành nhiều đợt.
-Log thể hiện điều này qua tiến độ map tăng dần 17 \%, 33 \%, 50 \%, 67
-\%, 83 \% rồi 100 \%.
+Con số này do người dùng chọn chứ không suy ra từ dữ liệu, job đếm từ để
+mặc định là 1. Với 2 reducer, mỗi map task tạo hai phân vùng, nên
+\texttt{Shuffled\ Maps} bằng \(6 \times 2 = 12\)
+(Bảng~\ref{tbl:l02-combiner-extra}). NodeManager chỉ chạy hai task 384
+MB cùng lúc nên 6 map chạy thành nhiều đợt; log thể hiện qua tiến độ map
+tăng dần 17 \%, 33 \%, 50 \%, 67 \%, 83 \% rồi 100 \%.
 
 \subsection{\texorpdfstring{Combiner giảm
 \texttt{Reduce\ shuffle\ bytes}\allowbreak{} bao nhiêu lần, và vì sao
 đầu ra combiner xấp xỉ số khu vực nhân số map
 task?}{Combiner giảm Reduce shuffle bytes bao nhiêu lần, và vì sao đầu ra combiner xấp xỉ số khu vực nhân số map task?}}\label{sec:l02-q4}
 
-Shuffle giảm khoảng \textbf{754 lần} (Bảng~\ref{tbl:l02-combiner}).
-Combiner chạy riêng trên đầu ra của từng map task, và mỗi task chỉ xuất
-một bản ghi cho mỗi khu vực mà nó gặp. Toàn bộ dữ liệu có 247 khu vực.
-Chia đều thì mỗi task ra khoảng \(1{,}382 / 6 \approx 230\) bản ghi, tức
-mỗi split gặp gần hết các khu vực. Chỉ các tổng cục bộ này đi qua
-shuffle, nên \texttt{Reduce\ input\ records}\allowbreak{} cũng chỉ còn
-1,382.
+Khoảng 754 lần (Mục~\ref{sec:l02-combiner}). Combiner chạy riêng trên
+đầu ra từng map task, và mỗi task chỉ xuất một bản ghi cho mỗi khu vực
+nó gặp. Toàn bộ dữ liệu có 247 khu vực, còn mỗi task ra trung bình
+\(1{,}382 / 6 \approx 230\) bản ghi, tức mỗi split gặp gần hết các khu
+vực. Chỉ các tổng cục bộ này đi qua shuffle, nên
+\texttt{Reduce\ input\ records}\allowbreak{} cũng chỉ còn bằng
+\texttt{Combine\ output\ records}\allowbreak{}
+(Bảng~\ref{tbl:l02-combiner}).
 
 \subsection{Vì sao combiner không làm job nhanh hơn ở đây, và khi nào nó
 có ích rõ?}\label{sec:l02-q5}
 
 Trên một máy, shuffle chỉ là chép dữ liệu qua đĩa cục bộ hoặc loopback,
-gần như không tốn gì. Trong khi đó combiner thêm một tiến trình Python
-phải đọc, phân tích và sắp xếp lại 1,000,000 bản ghi ở pha map. Theo
-Bảng~\ref{tbl:l02-combiner-extra}, tổng thời gian map không giảm. Phần
-tiết kiệm ở reduce, khoảng 1.7 s, không bù được thời gian khởi động và
-độ dao động khi lập lịch container. Mỗi cấu hình mới chạy một lần, nên
-chênh lệch 3.0 s chưa đủ để kết luận combiner làm chậm. Bản tham chiếu
-của đề bài cũng ghi khoảng 28 s và 37 s, nên dao động cỡ này là bình
-thường. Trên cluster thật, shuffle đi qua mạng và mỗi reducer phải merge
-hàng GB từ hàng trăm mapper. Lúc đó việc bỏ được 99.9 \% lượng shuffle
-và gần hết số bản ghi tràn đĩa sẽ lớn hơn nhiều so với chi phí CPU của
-combiner.
+gần như không tốn gì, trong khi combiner thêm một tiến trình Python phải
+đọc, phân tích và sắp xếp lại toàn bộ bản ghi đầu ra map. Tổng thời gian
+map không giảm, còn phần tiết kiệm ở reduce, khoảng 1.7 s
+(Bảng~\ref{tbl:l02-combiner-extra}), không bù được thời gian khởi động
+và dao động khi lập lịch container. Mỗi cấu hình mới chạy một lần nên
+chênh lệch 3.0 s chưa đủ để kết luận combiner làm chậm; bản tham chiếu
+của đề bài cũng ghi khoảng 28 s và 37 s. Trên cluster thật, shuffle đi
+qua mạng và mỗi reducer phải merge hàng GB từ hàng trăm mapper. Khi đó
+việc bỏ được gần hết lượng shuffle và số bản ghi tràn đĩa sẽ lớn hơn
+nhiều so với chi phí CPU của combiner.
 
 \subsection{Có dùng lại reducer ``trung bình'' làm combiner được
 không?}\label{sec:l02-q6}
 
-Không được. Trung bình của các trung bình cho kết quả sai khi các phân
-vùng có số bản ghi khác nhau. Ví dụ, trung bình của \(\{10\}\) và
-\(\{20, 30\}\) là \((10+20+30)/3 = 20\), còn trung bình của hai trung
-bình cục bộ là \((10 + 25)/2 = 17.5\). Ngoài ra reducer trung bình xuất
-ra một số thực, khác định dạng đầu vào, nên không gộp tiếp được. Hadoop
-có thể gọi combiner 0, 1 hay nhiều lần, nên cách đúng là để combiner
-phát \texttt{(sum,\ count)} và chỉ reducer mới chia. Phần mở rộng làm
-theo cách này và kết quả JFK khớp với bản không combiner
-(Bảng~\ref{tbl:l02-avgfare}).
+Không được. Trung bình của các trung bình sai khi các phân vùng có số
+bản ghi khác nhau: trung bình của \(\{10\}\) và \(\{20, 30\}\) là
+\((10+20+30)/3 = 20\), còn trung bình hai trung bình cục bộ là
+\((10 + 25)/2 = 17.5\). Reducer trung bình còn xuất ra một số thực, khác
+định dạng đầu vào, nên không gộp tiếp được khi Hadoop gọi combiner nhiều
+lần. Cách đúng là để combiner phát \texttt{(sum,\ count)} và chỉ reducer
+mới chia. Phần mở rộng làm theo cách này và kết quả JFK khớp với bản
+không combiner (Mục~\ref{sec:l02-avgfare}).
 
 \subsection{Map-side join trong bài hoạt động thế nào, và khi nào nó
 không còn hợp?}\label{sec:l02-q7}
 
-Mỗi mapper nạp
+Bảng
 \texttt{taxi\_}\allowbreak{}\texttt{zone\_}\allowbreak{}\texttt{lookup.}\allowbreak{}\texttt{csv}\allowbreak{}
-(được phân phối qua \texttt{-files}) vào một \texttt{dict}, rồi đổi
-\texttt{PULocationID} thành \texttt{Borough/Zone} ngay khi đọc từng
-chuyến. Bảng lớn vì thế không phải shuffle theo khóa nối. Cách này không
-còn hợp khi bảng ``nhỏ'' không vừa thoải mái trong bộ nhớ task (ở đây
-mỗi task chỉ có 384 MB), hoặc khi gửi bảng tới mọi task tốn hơn cả
-shuffle. Khi đó phải chuyển sang reduce-side join. Spark gọi cùng ý
-tưởng này là broadcast join, sẽ gặp lại ở L06.
+được gửi tới mọi task qua \texttt{-files}, mỗi mapper nạp vào bộ nhớ và
+tra cứu ngay khi đọc chuyến (Mục~\ref{sec:l02-zones}), nên phép nối xong
+ở pha map. Cách này không còn hợp khi bảng ``nhỏ'' không vừa thoải mái
+trong bộ nhớ task (ở đây mỗi task chỉ có 384 MB), hoặc khi gửi bảng tới
+mọi task tốn hơn cả shuffle. Khi đó phải dùng reduce-side join, tức
+shuffle cả hai tập theo khóa nối {[}3{]}. Spark gọi ý tưởng thứ nhất là
+broadcast join, sẽ gặp lại ở L06.
 
 \subsection{\texorpdfstring{Counter \texttt{BAD\_RECORDS} hiện ở đâu, và
 vì sao nên đếm dòng hỏng thay vì cho job
 dừng?}{Counter BAD\_RECORDS hiện ở đâu, và vì sao nên đếm dòng hỏng thay vì cho job dừng?}}\label{sec:l02-q8}
 
-Counter này nằm trong job counters, tức phần in ra console cuối job và
-mục Counters trên JobHistory UI, nhóm \texttt{TaxiLab}. Counter chỉ hiện
-khi có ít nhất một dòng hỏng. Dữ liệu trong bài không có dòng hỏng nên
-nhóm này không xuất hiện. Phần thử cục bộ ở
-Hình~\ref{fig:l02-taxi-local} cho thấy mapper vẫn phát đúng tín hiệu.
-Một job xử lý hàng tỷ dòng không nên chết vì vài dòng lỗi, vì như vậy
-mọi công việc đã làm bị bỏ phí. Đếm số dòng hỏng thì vẫn thấy được vấn
-đề chất lượng dữ liệu, và có thể đặt ngưỡng để cảnh báo hoặc dừng job
-khi số dòng hỏng quá nhiều.
-
-\subsection{Hạn chế của thực
-nghiệm}\label{hux1ea1n-chux1ebf-cux1ee7a-thux1ef1c-nghiux1ec7m}
-
-Mọi thứ chạy trên một máy với một NodeManager. Các container dùng chung
-CPU và đĩa, còn shuffle không đi qua mạng thật, nên con số thời gian
-không áp dụng thẳng cho cluster nhiều nút được. Mỗi cấu hình chỉ chạy
-một lần. Dữ liệu chỉ là mẫu 1,000,000 dòng của một tháng và không có
-dòng hỏng, nên \texttt{BAD\_RECORDS} mới được kiểm chứng ở chế độ cục
-bộ.
+Counter nằm trong job counters, nhóm \texttt{TaxiLab}: phần in ra
+console cuối job và mục Counters trên JobHistory UI. Nó chỉ hiện khi có
+ít nhất một dòng hỏng; dữ liệu trong bài không có dòng hỏng nên chỉ thấy
+được ở phép thử cục bộ (Hình~\ref{fig:l02-taxi-local}). Một job xử lý
+hàng tỷ dòng không nên chết vì vài dòng lỗi và bỏ phí mọi công việc đã
+làm. Đếm dòng hỏng vẫn cho thấy vấn đề chất lượng dữ liệu, và có thể đặt
+ngưỡng để cảnh báo hoặc dừng job khi số dòng hỏng quá nhiều.
 
 \section{Kết luận}\label{sec:l02-conclusion}
 
-Đường ống
-\texttt{cat\ \textbar{}\ mapper\ \textbar{}\ sort\ \textbar{}\ reducer}\allowbreak{}
-tái hiện đúng mô hình MapReduce, và bỏ \texttt{sort} cũng giống như bỏ
-shuffle. Số map task do số input split quyết định, còn số reduce task do
-người dùng đặt. Combiner giảm dữ liệu shuffle khoảng 754 lần mà không
-làm đổi kết quả. Tuy vậy trong môi trường một máy nó không làm job nhanh
-hơn, và chúng tôi cho rằng lý do nằm ở môi trường chứ không phải ở
-combiner. Với phép tổng hợp không có tính kết hợp như trung bình, cần
-một dạng trung gian như \texttt{(sum,\ count)} thì combiner mới dùng
-được.
-
-Trong thực tế, nên dùng combiner hoặc tổng hợp cục bộ cho các phép tổng
-hợp có tính kết hợp khi lượng shuffle lớn và đi qua mạng. Map-side join
-phù hợp khi một bên nằm gọn trong bộ nhớ task. Bản ghi hỏng nên được đếm
-thay vì bỏ qua âm thầm. Nếu có thêm thời gian, chúng tôi muốn làm bài
-Top-N với một reducer dùng heap, xem \texttt{HashPartitioner} chia khóa
-thế nào qua \texttt{part-00000} và \texttt{part-00001}, cố ý làm hỏng
-một task để quan sát cơ chế thử lại, và so với \texttt{groupBy().agg()}
-của Spark ở L05/L06.
+Bài đã hoàn thành các task của đề: mapper và reducer đếm từ cho cùng top
+5 khi chạy cục bộ và trên YARN, mapper khu vực có map-side join và
+counter dòng hỏng, bảng counter so sánh có và không có combiner, kiểm
+tra job trên hai giao diện web và CLI, cùng phần mở rộng giá cước trung
+bình với combiner \texttt{(sum,\ count)}. Combiner giảm dữ liệu shuffle
+khoảng 754 lần mà không đổi kết quả, nhưng không làm job nhanh hơn;
+chúng tôi cho rằng lý do nằm ở môi trường một máy chứ không phải ở
+combiner. Hạn chế chính là mọi thứ chạy trên một NodeManager, shuffle
+không đi qua mạng thật, mỗi cấu hình chỉ chạy một lần, và
+\texttt{BAD\_RECORDS} mới được kiểm chứng ở chế độ cục bộ.
 
 \section*{Tài liệu tham khảo}\label{tuxe0i-liux1ec7u-tham-khux1ea3o}
 \addcontentsline{toc}{section}{Tài liệu tham khảo}
@@ -947,27 +781,15 @@ Systems Design and Implementation (OSDI)}, 2004.
 documentation.
 https://hadoop.apache.org/docs/stable/hadoop-streaming/HadoopStreaming.html
 
-{[}3{]} V. K. Vavilapalli et al., ``Apache Hadoop YARN: Yet Another
-Resource Negotiator,'' in \emph{Proc. 4th ACM Symposium on Cloud
-Computing (SoCC)}, 2013.
-
-{[}4{]} T. White, \emph{Hadoop: The Definitive Guide}, 4th
+{[}3{]} T. White, \emph{Hadoop: The Definitive Guide}, 4th
 ed.~Sebastopol, CA, USA: O'Reilly Media, 2015.
 
-{[}5{]} M. Kleppmann, \emph{Designing Data-Intensive Applications}.
-Sebastopol, CA, USA: O'Reilly Media, 2017.
+\section*{Phụ lục: Trích đoạn mã
+nguồn}\label{phux1ee5-lux1ee5c-truxedch-ux111oux1ea1n-muxe3-nguux1ed3n}
+\addcontentsline{toc}{section}{Phụ lục: Trích đoạn mã nguồn}
 
-{[}6{]} M. Armbrust et al., ``Spark SQL: Relational Data Processing in
-Spark,'' in \emph{Proc. ACM SIGMOD International Conference on
-Management of Data}, 2015.
-
-{[}7{]} Apache Software Foundation, ``MapReduce Tutorial,'' Apache
-Hadoop documentation.
-https://hadoop.apache.org/docs/stable/hadoop-mapreduce-client/hadoop-mapreduce-client-core/MapReduceTutorial.html
-
-\section*{Phụ lục A: Danh mục tệp nộp
-kèm}\label{phux1ee5-lux1ee5c-a-danh-mux1ee5c-tux1ec7p-nux1ed9p-kuxe8m}
-\addcontentsline{toc}{section}{Phụ lục A: Danh mục tệp nộp kèm}
+Mã đầy đủ và log của từng task nằm trong \texttt{submission/L02/}
+(Bảng~\ref{tbl:l02-files}).
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
@@ -992,49 +814,17 @@ Nội dung
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-\texttt{wc\_mapper.py}, \texttt{wc\_reducer.py} & Mapper và reducer đếm
-từ \\
-\texttt{zones\_mapper.py} & Map-side join với
-\texttt{taxi\_}\allowbreak{}\texttt{zone\_}\allowbreak{}\texttt{lookup.}\allowbreak{}\texttt{csv}\allowbreak{},
-counter \texttt{BAD\_RECORDS} \\
+\texttt{wc\_mapper.py}, \texttt{wc\_reducer.py},
+\texttt{zones\_mapper.py} & Mapper/reducer đếm từ, mapper khu vực \\
 \texttt{stretch\_}\allowbreak{}\texttt{avg\_}\allowbreak{}\texttt{fare/}\allowbreak{}
-(\texttt{mapper.py}, \texttt{combiner.py}, \texttt{reducer.py}) & Mở
-rộng: giá cước trung bình với combiner \texttt{(sum,\ count)} \\
+& Mapper, combiner, reducer giá cước trung bình \\
 \texttt{01\_}\allowbreak{}\texttt{local\_}\allowbreak{}\texttt{pipe.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Kiểm thử cục bộ đếm từ, có và không có \texttt{sort} \\
-\texttt{02\_}\allowbreak{}\texttt{wordcount\_}\allowbreak{}\texttt{yarn.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Log và counter job \texttt{wordcount} trên YARN, top 5 từ HDFS \\
-\texttt{03\_}\allowbreak{}\texttt{taxi\_}\allowbreak{}\texttt{csv\_}\allowbreak{}\texttt{local\_}\allowbreak{}\texttt{zones.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Chuyển CSV, \texttt{hdfs\ fsck}, kiểm thử cục bộ mapper khu vực và
-\texttt{BAD\_RECORDS} \\
-\texttt{04\_}\allowbreak{}\texttt{combiner\_}\allowbreak{}\texttt{vs\_}\allowbreak{}\texttt{nocombiner.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Trích counter hai lần chạy, wall-clock, top 10 khu vực, kết quả
-\texttt{diff} \\
+đến
+\texttt{06\_}\allowbreak{}\texttt{stretch\_}\allowbreak{}\texttt{avg\_}\allowbreak{}\texttt{fare.}\allowbreak{}\texttt{txt}\allowbreak{}
+& Log từng task \\
 \texttt{nocombiner.log}, \texttt{combiner.log} & Log đầy đủ hai job khu
 vực \\
-\texttt{05\_yarn\_cli.txt} & Kết quả
-\texttt{yarn\ application\ -list}\allowbreak{} và
-\texttt{mapred\ job\ -list\ all}\allowbreak{} \\
-\texttt{06\_}\allowbreak{}\texttt{stretch\_}\allowbreak{}\texttt{avg\_}\allowbreak{}\texttt{fare.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Kết quả job giá cước trung bình \\
-\texttt{img/} & Ảnh chụp terminal và giao diện web \\
 \end{longtable}
-
-\section*{Phụ lục B: Trích đoạn mã
-nguồn}\label{phux1ee5-lux1ee5c-b-truxedch-ux111oux1ea1n-muxe3-nguux1ed3n}
-\addcontentsline{toc}{section}{Phụ lục B: Trích đoạn mã nguồn}
-
-Mapper đếm từ (\texttt{wc\_mapper.py}) phát một cặp
-\texttt{word\textbackslash{}t1} cho mỗi từ tìm được.
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{WORD }\OperatorTok{=}\NormalTok{ re.}\BuiltInTok{compile}\NormalTok{(}\VerbatimStringTok{r"[a{-}z][a{-}z\textquotesingle{}]*"}\NormalTok{)}
-\ControlFlowTok{for}\NormalTok{ line }\KeywordTok{in}\NormalTok{ sys.stdin:}
-    \ControlFlowTok{for}\NormalTok{ word }\KeywordTok{in}\NormalTok{ WORD.findall(line.lower()):}
-        \BuiltInTok{print}\NormalTok{(}\SpecialStringTok{f"}\SpecialCharTok{\{}\NormalTok{word}\SpecialCharTok{\}}\CharTok{\textbackslash{}t}\SpecialStringTok{1"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
 
 Reducer đếm từ (\texttt{wc\_reducer.py}) tự nhận ra chỗ đổi khóa và in
 thêm khóa cuối cùng sau vòng lặp.
@@ -1073,29 +863,6 @@ hỏng qua stderr và phát \texttt{zone\textbackslash{}t1}.
         \ControlFlowTok{continue}
 \NormalTok{    pu }\OperatorTok{=}\NormalTok{ fields[PU\_COL].strip()}
     \BuiltInTok{print}\NormalTok{(}\SpecialStringTok{f"}\SpecialCharTok{\{}\NormalTok{zones}\SpecialCharTok{.}\NormalTok{get(pu, pu)}\SpecialCharTok{\}}\CharTok{\textbackslash{}t}\SpecialStringTok{1"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-Combiner của phần mở rộng
-(\texttt{stretch\_}\allowbreak{}\texttt{avg\_}\allowbreak{}\texttt{fare/}\allowbreak{}\texttt{combiner.}\allowbreak{}\texttt{py}\allowbreak{})
-cộng dồn \texttt{(sum,\ count)} và giữ định dạng
-\texttt{key\textbackslash{}tsum,count}. Reducer có cùng logic, chỉ khác
-ở chỗ cuối cùng in \texttt{total\ /\ count} với hai chữ số thập phân kèm
-số chuyến.
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\ControlFlowTok{for}\NormalTok{ line }\KeywordTok{in}\NormalTok{ sys.stdin:}
-\NormalTok{    key, \_, value }\OperatorTok{=}\NormalTok{ line.rstrip(}\StringTok{"}\CharTok{\textbackslash{}n}\StringTok{"}\NormalTok{).partition(}\StringTok{"}\CharTok{\textbackslash{}t}\StringTok{"}\NormalTok{)}
-\NormalTok{    s, \_, c }\OperatorTok{=}\NormalTok{ value.partition(}\StringTok{","}\NormalTok{)}
-    \ControlFlowTok{if}\NormalTok{ key }\OperatorTok{==}\NormalTok{ current\_key:}
-\NormalTok{        total, count }\OperatorTok{=}\NormalTok{ total }\OperatorTok{+} \BuiltInTok{float}\NormalTok{(s), count }\OperatorTok{+} \BuiltInTok{int}\NormalTok{(c)}
-    \ControlFlowTok{else}\NormalTok{:}
-        \ControlFlowTok{if}\NormalTok{ current\_key }\KeywordTok{is} \KeywordTok{not} \VariableTok{None}\NormalTok{:}
-            \BuiltInTok{print}\NormalTok{(}\SpecialStringTok{f"}\SpecialCharTok{\{}\NormalTok{current\_key}\SpecialCharTok{\}}\CharTok{\textbackslash{}t}\SpecialCharTok{\{}\NormalTok{total}\SpecialCharTok{\}}\SpecialStringTok{,}\SpecialCharTok{\{}\NormalTok{count}\SpecialCharTok{\}}\SpecialStringTok{"}\NormalTok{)}
-\NormalTok{        current\_key, total, count }\OperatorTok{=}\NormalTok{ key, }\BuiltInTok{float}\NormalTok{(s), }\BuiltInTok{int}\NormalTok{(c)}
-\ControlFlowTok{if}\NormalTok{ current\_key }\KeywordTok{is} \KeywordTok{not} \VariableTok{None}\NormalTok{:}
-    \BuiltInTok{print}\NormalTok{(}\SpecialStringTok{f"}\SpecialCharTok{\{}\NormalTok{current\_key}\SpecialCharTok{\}}\CharTok{\textbackslash{}t}\SpecialCharTok{\{}\NormalTok{total}\SpecialCharTok{\}}\SpecialStringTok{,}\SpecialCharTok{\{}\NormalTok{count}\SpecialCharTok{\}}\SpecialStringTok{"}\NormalTok{)}
 \end{Highlighting}
 \end{Shaded}
 

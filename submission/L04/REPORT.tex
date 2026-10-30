@@ -201,129 +201,21 @@ Lớp:                  & 23KDL \\
 }
 \listoffigures
 \listoftables
-\section*{Tóm tắt}\label{tuxf3m-tux1eaft}
-\addcontentsline{toc}{section}{Tóm tắt}
+\section{Mục tiêu và môi trường}\label{sec:l04-intro}
 
-Bài thực hành này nạp dữ liệu theo lô từ PostgreSQL (bộ dữ liệu Olist, 6
-bảng, 5,000 đơn hàng) vào HDFS bằng hai công cụ: Apache Sqoop 1.4.7 chạy
-MapReduce trên YARN và Spark 4.1.3 qua nguồn dữ liệu JDBC. Chúng tôi bật
+Bài thực hành nạp dữ liệu từ PostgreSQL vào HDFS bằng Apache Sqoop 1.4.7
+(đã vào Apache Attic từ tháng 6 năm 2021) {[}1{]} và Spark JDBC {[}2{]},
+theo hai cách nạp toàn phần và nạp gia tăng, rồi so sánh hai công cụ.
+PostgreSQL chạy với
 \texttt{log\_}\allowbreak{}\texttt{statement=}\allowbreak{}\texttt{all}\allowbreak{}
-trên PostgreSQL để đọc trực tiếp câu SQL mà mỗi công cụ gửi xuống. Khi
-chia theo \texttt{order\_seq}, Sqoop tạo 4 khoảng đều nhau (1,250 dòng
-mỗi map); chia theo
-\texttt{customer\_}\allowbreak{}\texttt{zip\_}\allowbreak{}\texttt{code\_}\allowbreak{}\texttt{prefix}\allowbreak{}
-thì lệch nặng (2,450 so với 427 dòng). Spark JDBC đọc song song 4
-partition, thời gian \texttt{count()} giảm từ 1.17 s xuống 0.22 s, và
-đầu ra Parquet phân vùng theo tháng chiếm 680.4 KB so với 1.0 MB văn bản
-của Sqoop. Ở chế độ gia tăng, \texttt{append} chỉ bắt được 3 dòng
-INSERT; \texttt{lastmodified} và watermark trên \texttt{updated\_at} bắt
-được 5 dòng (3 INSERT, 2 UPDATE), lần chạy không có thay đổi đọc 0 dòng.
-Spark JDBC thay được Sqoop, nhưng mọi cách nạp dựa trên truy vấn đều bỏ
-sót DELETE và các phiên bản trung gian, nên vẫn cần CDC.
-
-\textbf{Từ khóa:} Sqoop, Spark JDBC, PostgreSQL, HDFS, Parquet,
-split-by, partitionColumn, incremental load, watermark, CDC.
-
-\section{Giới thiệu}\label{sec:l04-intro}
-
-Dữ liệu nghiệp vụ phần lớn nằm trong các cơ sở dữ liệu giao dịch (OLTP).
-Muốn phân tích trên nền tảng dữ liệu lớn thì phải định kỳ chép dữ liệu
-đó sang HDFS. Có hai yêu cầu đi kèm: đọc song song đủ nhanh mà không làm
-sập cơ sở dữ liệu nguồn, và ở các lần sau chỉ đọc phần đã thay đổi.
-
-Công cụ truyền thống trong hệ Hadoop là Apache Sqoop {[}1{]}. Dự án này
-đã vào Apache Attic từ tháng 6 năm 2021, nên hiện nay người ta thường
-dùng Spark JDBC {[}2{]} hoặc CDC thay thế. Bài này nhắm tới bốn việc:
-
-\begin{enumerate}
-\def\labelenumi{\arabic{enumi}.}
-\tightlist
-\item
-  Chạy Sqoop nạp toàn phần với \texttt{-\/-split-by} và \texttt{-m}, đọc
-  câu SQL Sqoop sinh ra để hiểu cách chia split, và so sánh cột phân bố
-  đều (\texttt{order\_seq}) với cột lệch
-  (\texttt{customer\_}\allowbreak{}\texttt{zip\_}\allowbreak{}\texttt{code\_}\allowbreak{}\texttt{prefix}\allowbreak{}).
-\item
-  Chạy Sqoop nạp gia tăng ở chế độ \texttt{append} và
-  \texttt{lastmodified}, kèm saved job, \texttt{-\/-merge-key} và
-  \texttt{sqoop\ export}.
-\item
-  Viết phần còn thiếu của
-  \texttt{spark\_}\allowbreak{}\texttt{jdbc\_}\allowbreak{}\texttt{ingest.}\allowbreak{}\texttt{py}\allowbreak{}:
-  đọc JDBC song song, ghi Parquet phân vùng theo tháng, nạp gia tăng
-  bằng watermark và dựng snapshot khử trùng lặp.
-\item
-  So sánh hai công cụ và chỉ ra giới hạn của nạp gia tăng dựa trên truy
-  vấn so với CDC.
-\end{enumerate}
-
-\section{Cơ sở lý thuyết}\label{sec:l04-theory}
-
-\subsection{Nạp toàn phần và nạp gia
-tăng}\label{nux1ea1p-touxe0n-phux1ea7n-vuxe0-nux1ea1p-gia-tux103ng}
-
-Nạp toàn phần đọc lại cả bảng mỗi lần, đơn giản và luôn nhất quán nhưng
-tốn kém khi bảng lớn. Nạp gia tăng chỉ đọc dòng mới hoặc dòng đã đổi,
-dựa vào một cột đơn điệu: khóa tăng dần (bắt INSERT) hoặc cột thời điểm
-cập nhật (bắt cả INSERT và UPDATE). Giá trị lớn nhất đã xử lý được lưu
-lại làm watermark cho lần chạy sau {[}5{]}.
-
-\subsection{Cách Sqoop chia split}\label{cuxe1ch-sqoop-chia-split}
-
-Mỗi lệnh \texttt{import} được biên dịch thành một MapReduce job chỉ có
-pha map {[}1{]}, {[}6{]}. Sqoop chạy một \emph{bounding query}
-\texttt{SELECT\ MIN(col),}\allowbreak{}\texttt{\ MAX(col)}\allowbreak{}
-trên cột \texttt{-\/-split-by}, rồi chia đoạn \([\min, \max]\) thành
-\texttt{-m} khoảng có độ rộng giá trị bằng nhau. Mỗi map mở một kết nối
-JDBC và chạy
-\texttt{SELECT\ .}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{\ WHERE\ col\ \textgreater{}=}\allowbreak{}\texttt{\ lo\ AND\ col\ \textless{}\ hi}\allowbreak{}
-(khoảng cuối dùng \texttt{\textless{}=}). Số dòng mỗi map chỉ đều khi
-giá trị của cột chia phân bố đều.
-
-\subsection{Đọc JDBC song song trong
-Spark}\label{ux111ux1ecdc-jdbc-song-song-trong-spark}
-
-Nguồn JDBC của Spark SQL {[}2{]}, {[}3{]} nhận \texttt{partitionColumn},
-\texttt{lowerBound}, \texttt{upperBound} và \texttt{numPartitions}.
-Spark tính bước \(s = (\text{upper} - \text{lower}) / n\) và sinh \(n\)
-mệnh đề WHERE; partition đầu là
-\texttt{col\ \textless{}\ lower\ +\ s\ OR\ col\ IS\ NULL}\allowbreak{},
-partition cuối là
-\texttt{col\ \textgreater{}=}\allowbreak{}\texttt{\ lower\ +\ (n-1)s}\allowbreak{},
-cả hai không có cận ngoài. Như vậy hai cận chỉ quyết định bước chia chứ
-không lọc dữ liệu. Cột chia phải có kiểu số, ngày hoặc timestamp; mỗi
-partition là một task của RDD {[}4{]} và một kết nối riêng.
-
-\subsection{Watermark, change log và
-snapshot}\label{watermark-change-log-vuxe0-snapshot}
-
-Pipeline gia tăng thường ghi các dòng thay đổi vào một change log chỉ
-nối thêm, rồi dựng snapshot bằng cách giữ phiên bản mới nhất của mỗi
-khóa, ví dụ với \texttt{row\_number()}. Cận trên của cửa sổ phải chốt
-trước khi đọc, và watermark chỉ lưu sau khi ghi xong. Kết quả là ngữ
-nghĩa \emph{at-least-once} cộng với bước khử trùng lặp idempotent
-{[}5{]}.
-
-\subsection{Change Data Capture}\label{change-data-capture}
-
-CDC dựa trên nhật ký giao dịch không truy vấn bảng mà đọc write-ahead
-log (WAL) qua \emph{logical decoding} {[}7{]}. Các công cụ như Debezium
-{[}8{]} phát ra mọi INSERT, UPDATE và DELETE theo thứ tự commit, kèm ảnh
-trước và sau của dòng.
-
-\section{Môi trường và phương pháp thực nghiệm}\label{sec:l04-method}
-
-\subsection{Môi trường}\label{muxf4i-trux1b0ux1eddng}
-
-Toàn bộ hệ thống chạy bằng Docker Compose trên một máy
-(Bảng~\ref{tbl:l04-env}). Lúc khởi động, container \texttt{jdbc-driver}
-chỉ tải driver rồi thoát với mã 0; ban đầu chúng tôi tưởng nó lỗi, nhưng
-đó là hành vi đúng (Hình~\ref{fig:l04-stack}).
+để đọc trực tiếp câu SQL mà mỗi công cụ gửi xuống. Hệ thống chạy bằng
+Docker Compose trên một máy (Bảng~\ref{tbl:l04-env}). Container
+\texttt{jdbc-driver} chỉ tải driver rồi thoát với mã 0; ban đầu chúng
+tôi tưởng nó lỗi, nhưng đó là hành vi đúng (Hình~\ref{fig:l04-stack}).
 
 \begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}@{}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
 \caption{\label{tbl:l04-env}Môi trường thực nghiệm (stack
 \texttt{l04\_ingestion}).}\tabularnewline
 \toprule\noalign{}
@@ -331,8 +223,6 @@ chỉ tải driver rồi thoát với mã 0; ban đầu chúng tôi tưởng nó
 Thành phần
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Phiên bản / cấu hình
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Vai trò
 \end{minipage} \\
 \midrule\noalign{}
 \endfirsthead
@@ -341,49 +231,43 @@ Vai trò
 Thành phần
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Phiên bản / cấu hình
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Vai trò
 \end{minipage} \\
 \midrule\noalign{}
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
 PostgreSQL & 18.6,
-\texttt{log\_}\allowbreak{}\texttt{statement=}\allowbreak{}\texttt{all}\allowbreak{}
-& Cơ sở dữ liệu nguồn Olist, ghi lại mọi câu SQL \\
-HDFS & 3.4.3, 1 NameNode + 1 DataNode & Đích lưu trữ \\
-YARN & ResourceManager, NodeManager, JobHistory Server & Chạy MapReduce
-job của Sqoop \\
+\texttt{log\_}\allowbreak{}\texttt{statement=}\allowbreak{}\texttt{all}\allowbreak{},
+cơ sở dữ liệu nguồn Olist \\
+HDFS & 3.4.3, 1 NameNode + 1 DataNode \\
+YARN & ResourceManager, NodeManager, JobHistory Server (chạy job của
+Sqoop) \\
 Sqoop & 1.4.7 (image khóa học
-\texttt{de-labs/}\allowbreak{}\texttt{sqoop:}\allowbreak{}\texttt{1.}\allowbreak{}\texttt{4.}\allowbreak{}\texttt{7}\allowbreak{})
-& Công cụ nạp truyền thống \\
-Spark & 4.1.3, local mode, Spark UI cổng 4040 & Công cụ nạp hiện đại \\
+\texttt{de-labs/}\allowbreak{}\texttt{sqoop:}\allowbreak{}\texttt{1.}\allowbreak{}\texttt{4.}\allowbreak{}\texttt{7}\allowbreak{}) \\
+Spark & 4.1.3, local mode, Spark UI cổng 4040 \\
 JDBC driver & PostgreSQL JDBC
-(\texttt{/}\allowbreak{}\texttt{jars/}\allowbreak{}\texttt{postgresql.}\allowbreak{}\texttt{jar}\allowbreak{})
-& Kết nối cho Sqoop và Spark \\
+(\texttt{/}\allowbreak{}\texttt{jars/}\allowbreak{}\texttt{postgresql.}\allowbreak{}\texttt{jar}\allowbreak{}),
+dùng chung cho Sqoop và Spark \\
 \end{longtable}
 
 \begin{figure}
 \centering
 \includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/01_stack_and_source.png}
-\caption{Trạng thái các container của stack L04
-(\texttt{docker\ compose\ ps}\allowbreak{}) và danh sách 6 bảng nguồn
-trong PostgreSQL; container \texttt{jdbc-driver} kết thúc với mã 0 sau
-khi tải driver.}\label{fig:l04-stack}
+\caption{Trạng thái container của stack L04 và 6 bảng nguồn trong
+PostgreSQL.}\label{fig:l04-stack}
 \end{figure}
 
-\subsection{Dữ liệu}\label{dux1eef-liux1ec7u}
-
-Nguồn là cơ sở dữ liệu Olist tổng hợp gồm 6 bảng: \texttt{customers},
+Nguồn là cơ sở dữ liệu Olist tổng hợp gồm 6 bảng (\texttt{customers},
 \texttt{orders}, \texttt{order\_items}, \texttt{order\_payments},
-\texttt{products}, \texttt{sellers}. Bảng \texttt{orders} có 5,000 dòng,
-\texttt{order\_seq} chạy từ 1 đến 5000, \texttt{max(updated\_at)} là
+\texttt{products}, \texttt{sellers}). Bảng \texttt{orders} có 5,000
+dòng, \texttt{order\_seq} chạy từ 1 đến 5000, \texttt{max(updated\_at)}
+là
 \texttt{2018-09-08\ 09:}\allowbreak{}\texttt{48:}\allowbreak{}\texttt{29}\allowbreak{}.
-\texttt{order\_seq} là khóa thay thế kiểu số, tăng theo thời gian mua;
-các khóa gốc như \texttt{order\_id}, \texttt{customer\_id} là chuỗi hash
-32 ký tự. Mỗi bảng có cột \texttt{updated\_at} do trigger tự cập nhật
-khi UPDATE. Phân bố trạng thái đơn hàng lấy bằng \texttt{sqoop\ eval}
-nằm ở Bảng~\ref{tbl:l04-status}.
+\texttt{order\_seq} là khóa thay thế kiểu số, tăng theo thời gian mua,
+còn \texttt{order\_id}, \texttt{customer\_id} là chuỗi hash 32 ký tự.
+Mỗi bảng có cột \texttt{updated\_at} do trigger tự cập nhật khi UPDATE.
+Phân bố trạng thái đơn hàng lấy bằng \texttt{sqoop\ eval} nằm ở
+Bảng~\ref{tbl:l04-status}.
 
 \begin{longtable}[]{@{}ll@{}}
 \caption{\label{tbl:l04-status}Phân bố trạng thái của 5,000 đơn hàng ban
@@ -410,83 +294,31 @@ created & 1 \\
 
 Script
 \texttt{sql/}\allowbreak{}\texttt{simulate\_}\allowbreak{}\texttt{changes.}\allowbreak{}\texttt{sql}\allowbreak{}
-mô phỏng một ngày nghiệp vụ: chèn 3 khách hàng và 3 đơn mới (trạng thái
-\texttt{created}), đổi 2 đơn \texttt{shipped} đầu tiên thành
-\texttt{delivered}. Chúng tôi chạy script hai lần: lần 1 trước phần
-Sqoop gia tăng (tạo \texttt{order\_seq} 5001--5003, cập nhật đơn 139 và
-278), lần 2 giữa hai lần chạy Spark gia tăng (tạo 5004--5006, cập nhật
-đơn 337 và 355). Vì thế lúc chạy Spark, \texttt{orders} và
-\texttt{customers} đã có 5,003 dòng chứ không phải 5,000.
+chèn 3 khách hàng và 3 đơn mới, đổi 2 đơn \texttt{shipped} đầu tiên
+thành \texttt{delivered}. Chúng tôi chạy nó hai lần: trước phần Sqoop
+gia tăng và giữa hai lần chạy Spark gia tăng. Vì thế lúc chạy Spark,
+\texttt{orders} và \texttt{customers} đã có 5,003 dòng, khác giá trị
+tham chiếu trong README.
 
-\subsection{Quy trình}\label{quy-truxecnh}
-
-\begin{enumerate}
-\def\labelenumi{\arabic{enumi}.}
-\tightlist
-\item
-  Khởi động stack, kiểm tra 6 bảng và thống kê \texttt{orders}.
-\item
-  Sqoop phần 1 (\texttt{sqoop\_part1.sh}): \texttt{list-tables},
-  \texttt{eval}; nạp toàn phần \texttt{orders} với
-  \texttt{-\/-split-by\ order\_}\allowbreak{}\texttt{seq\ -m\ 4}\allowbreak{};
-  nạp \texttt{customers} với
-  \texttt{-\/-split-by\ customer\_}\allowbreak{}\texttt{zip\_}\allowbreak{}\texttt{code\_}\allowbreak{}\texttt{prefix\ -m\ 4}\allowbreak{};
-  nạp \texttt{append} lần đầu với \texttt{-m\ 2},
-  \texttt{-\/-last-value\ 0}; nạp \texttt{lastmodified} cơ sở với
-  \texttt{-m\ 1},
-  \texttt{-\/-last-value\ \textquotesingle{}1970-01-01\ 00:}\allowbreak{}\texttt{00:}\allowbreak{}\texttt{00\textquotesingle{}}\allowbreak{};
-  tạo saved job \texttt{orders\_incr}. Đếm số dòng từng file
-  \texttt{part-m-*}.
-\item
-  Chạy
-  \texttt{simulate\_}\allowbreak{}\texttt{changes.}\allowbreak{}\texttt{sql}\allowbreak{}
-  lần 1.
-\item
-  Sqoop phần 2:
-  \texttt{sqoop\ job\ -\/-exec\ orders\_}\allowbreak{}\texttt{incr}\allowbreak{};
-  \texttt{lastmodified} với
-  \texttt{-\/-merge-key\ order\_}\allowbreak{}\texttt{id}\allowbreak{};
-  \texttt{sqoop\ export} từ \texttt{orders\_full} sang bảng mới
-  \texttt{orders\_copy} với \texttt{-m\ 2}.
-\item
-  Spark \texttt{-\/-step\ full}: đọc naive, đọc song song theo
-  \texttt{order\_seq} và theo
-  \texttt{order\_}\allowbreak{}\texttt{purchase\_}\allowbreak{}\texttt{timestamp}\allowbreak{},
-  ghi Parquet phân vùng \texttt{purchase\_month}, kiểm tra partition
-  pruning, nạp 5 bảng còn lại.
-\item
-  Spark \texttt{-\/-step\ incremental}\allowbreak{} ba lần: lần 1; chạy
-  \texttt{simulate\_}\allowbreak{}\texttt{changes.}\allowbreak{}\texttt{sql}\allowbreak{}
-  lần 2; lần 2; lần 3 khi không có thay đổi.
-\item
-  Trong suốt quá trình, thu nhật ký PostgreSQL để đối chiếu câu SQL;
-  chụp YARN UI, JobHistory và Spark UI.
-\end{enumerate}
-
-Các tham số thay đổi giữa các thí nghiệm là cột chia
-(\texttt{order\_seq},
-\texttt{customer\_}\allowbreak{}\texttt{zip\_}\allowbreak{}\texttt{code\_}\allowbreak{}\texttt{prefix}\allowbreak{},
-\texttt{order\_}\allowbreak{}\texttt{purchase\_}\allowbreak{}\texttt{timestamp}\allowbreak{}),
-mức song song (\texttt{-m\ 1/2/4}, \texttt{numPartitions} 1 hoặc 4) và
-chế độ gia tăng.
-
-\section{Kết quả thực nghiệm}\label{sec:l04-results}
+\section{Thực hiện và kết quả}\label{sec:l04-results}
 
 \subsection{\texorpdfstring{Sqoop nạp toàn phần bảng
-\texttt{orders}}{Sqoop nạp toàn phần bảng orders}}\label{sqoop-nux1ea1p-touxe0n-phux1ea7n-bux1ea3ng-orders}
+\texttt{orders}}{Sqoop nạp toàn phần bảng orders}}\label{sec:l04-sqoop-full}
 
-Sqoop gửi
-\texttt{SELECT\ MIN("order\_}\allowbreak{}\texttt{seq"),}\allowbreak{}\texttt{\ MAX("order\_}\allowbreak{}\texttt{seq")\ FROM\ "orders"}\allowbreak{},
-nhận (1, 5000) và báo
-\texttt{number\ of\ splits:}\allowbreak{}\texttt{4}\allowbreak{}. Nhật
-ký PostgreSQL có đúng 4 câu SELECT của 4 map
-(Bảng~\ref{tbl:l04-sqoop-splits}, Hình~\ref{fig:l04-pglog-sqoop}). Job
+Mỗi lệnh \texttt{import} được biên dịch thành một MapReduce job chỉ có
+pha map {[}1{]}. Với
+\texttt{-\/-split-by\ order\_}\allowbreak{}\texttt{seq\ -m\ 4}\allowbreak{},
+Sqoop báo
+\texttt{number\ of\ splits:}\allowbreak{}\texttt{4}\allowbreak{} và nhật
+ký PostgreSQL có đúng 4 câu SELECT theo khoảng của 4 map
+(Bảng~\ref{tbl:l04-sqoop-splits}, Hình~\ref{fig:l04-pglog-sqoop}; cách
+chia giải thích ở Mục~\ref{sec:l04-q1}). Job
 \texttt{job\_}\allowbreak{}\texttt{1793356967101\_}\allowbreak{}\texttt{0001}\allowbreak{}
 báo
 \texttt{Transferred\ 1.}\allowbreak{}\texttt{009\ MB\ in\ 25.}\allowbreak{}\texttt{2306\ seconds\ (40.}\allowbreak{}\texttt{9499\ KB/}\allowbreak{}\texttt{sec)}\allowbreak{}
-và \texttt{Retrieved\ 5000\ records}\allowbreak{}. Cả lệnh CLI mất 28.5
-s, vì còn phải khởi động JVM, sinh và biên dịch lớp record rồi nộp job
-lên YARN.
+và \texttt{Retrieved\ 5000\ records}\allowbreak{}; cả lệnh CLI mất 28.5
+s vì còn khởi động JVM, sinh và biên dịch lớp record rồi nộp job lên
+YARN.
 
 \begin{longtable}[]{@{}llll@{}}
 \caption{\label{tbl:l04-sqoop-splits}Các split của Sqoop khi nạp
@@ -516,19 +348,17 @@ Map & Điều kiện WHERE & Số dòng & Kích thước file \\
 & 1,250 & 264,149 B \\
 \end{longtable}
 
-Bốn file \texttt{part-m-00000} đến \texttt{part-m-00003} gần như bằng
-nhau cả về số dòng lẫn kích thước (Hình~\ref{fig:l04-sqoop-full}). Dữ
-liệu là văn bản CSV, timestamp có dạng
-\texttt{2017-01-03\ 01:}\allowbreak{}\texttt{29:}\allowbreak{}\texttt{02.}\allowbreak{}\texttt{0}\allowbreak{},
-NULL được ghi là \texttt{\textbackslash{}N}. JobHistory xác nhận job có
-4 map, 0 reduce, tất cả thành công (Hình~\ref{fig:l04-jh-orders}).
+Bốn file \texttt{part-m-*} gần bằng nhau cả về số dòng lẫn kích thước
+(Hình~\ref{fig:l04-sqoop-full}), dạng văn bản CSV với timestamp
+\texttt{2017-01-03\ 01:}\allowbreak{}\texttt{29:}\allowbreak{}\texttt{02.}\allowbreak{}\texttt{0}\allowbreak{}
+và NULL ghi là \texttt{\textbackslash{}N}. JobHistory xác nhận 4 map, 0
+reduce (Hình~\ref{fig:l04-jh-orders}).
 
 \begin{figure}
 \centering
 \includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/02_sqoop_full_import_orders.png}
-\caption{Kết quả Sqoop nạp toàn phần \texttt{orders}: bounding query, 4
-split, 1.009 MB trong 25.2306 s và 1,250 dòng mỗi
-file.}\label{fig:l04-sqoop-full}
+\caption{Sqoop nạp toàn phần \texttt{orders}: bounding query, 4 split và
+số dòng mỗi file.}\label{fig:l04-sqoop-full}
 \end{figure}
 
 \begin{figure}
@@ -548,15 +378,16 @@ gửi.}\label{fig:l04-pglog-sqoop}
 task.}\label{fig:l04-jh-orders}
 \end{figure}
 
-\subsection{Sqoop với cột chia bị
-lệch}\label{sqoop-vux1edbi-cux1ed9t-chia-bux1ecb-lux1ec7ch}
+\subsection{Sqoop với cột chia bị lệch}\label{sec:l04-sqoop-skew}
 
-Với \texttt{customers}, chúng tôi chia theo
-\texttt{customer\_}\allowbreak{}\texttt{zip\_}\allowbreak{}\texttt{code\_}\allowbreak{}\texttt{prefix\ -m\ 4}\allowbreak{}.
+Bảng \texttt{customers} được nạp với
+\texttt{-\/-split-by\ customer\_}\allowbreak{}\texttt{zip\_}\allowbreak{}\texttt{code\_}\allowbreak{}\texttt{prefix\ -m\ 4}\allowbreak{}
+vào
+\texttt{/}\allowbreak{}\texttt{data/}\allowbreak{}\texttt{olist/}\allowbreak{}\texttt{sqoop/}\allowbreak{}\texttt{customers\_}\allowbreak{}\texttt{full}\allowbreak{}.
 Bounding query trả về (1014, 95099), và nhật ký PostgreSQL cho thấy 4
 khoảng rộng xấp xỉ 23,521 với các điểm cắt 24536, 48057 và 71578. Số
-dòng mỗi file nằm ở Bảng~\ref{tbl:l04-skew}, đặt cạnh trường hợp
-\texttt{orders} để dễ so.
+dòng mỗi file đặt cạnh trường hợp \texttt{orders} ở
+Bảng~\ref{tbl:l04-skew}.
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
@@ -604,10 +435,9 @@ part-m-00003
 \end{longtable}
 
 Split đầu nhận gần nửa bảng, gấp khoảng 5.7 lần split thứ ba
-(Hình~\ref{fig:l04-skew}). Để kiểm tra độc lập, chúng tôi đếm zip code
-bằng \texttt{width\_bucket} trên 4 thùng (Bảng~\ref{tbl:l04-bucket}) và
-thấy cùng xu hướng: thùng chứa vùng São Paulo (01xxx--19xxx) chiếm phần
-lớn khách hàng.
+(Hình~\ref{fig:l04-skew}). Đếm độc lập bằng \texttt{width\_bucket} trên
+4 thùng (Bảng~\ref{tbl:l04-bucket}) cho cùng xu hướng: thùng chứa vùng
+São Paulo (01xxx--19xxx) chiếm phần lớn khách hàng.
 
 \begin{longtable}[]{@{}llll@{}}
 \caption{\label{tbl:l04-bucket}Phân bố
@@ -638,15 +468,14 @@ Thùng & min zip & max zip & Số khách hàng \\
 thể hiện dữ liệu bị lệch.}\label{fig:l04-skew}
 \end{figure}
 
-\subsection{Sqoop nạp gia tăng, merge và
-export}\label{sqoop-nux1ea1p-gia-tux103ng-merge-vuxe0-export}
+\subsection{Sqoop nạp gia tăng, saved job, merge và
+export}\label{sec:l04-sqoop-incr}
 
-Chuỗi thao tác gia tăng được tóm ở Bảng~\ref{tbl:l04-sqoop-incr}. Lần
-\texttt{append} đầu với \texttt{-m\ 2} có điều kiện
-\texttt{order\_}\allowbreak{}\texttt{seq\ \textgreater{}\ 0\ AND\ order\_}\allowbreak{}\texttt{seq\ \textless{}=}\allowbreak{}\texttt{\ 5000}\allowbreak{}
-và hai split \texttt{{[}1,\ 2501)}, \texttt{{[}2501,\ 5000{]}}. Cuối
-lệnh, Sqoop gợi ý \texttt{-\/-last-value\ 5000}\allowbreak{} và đề nghị
-lưu thành saved job. Saved job \texttt{orders\_incr} lưu
+Chuỗi thao tác được tóm ở Bảng~\ref{tbl:l04-sqoop-incr}. Lần
+\texttt{append} đầu (\texttt{-\/-last-value\ 0}) có điều kiện
+\texttt{order\_}\allowbreak{}\texttt{seq\ \textgreater{}\ 0\ AND\ order\_}\allowbreak{}\texttt{seq\ \textless{}=}\allowbreak{}\texttt{\ 5000}\allowbreak{},
+hai split \texttt{{[}1,\ 2501)} và \texttt{{[}2501,\ 5000{]}}. Saved job
+\texttt{orders\_incr} lưu
 \texttt{incremental.}\allowbreak{}\texttt{col\ =}\allowbreak{}\texttt{\ order\_}\allowbreak{}\texttt{seq}\allowbreak{}
 và
 \texttt{incremental.}\allowbreak{}\texttt{mode\ =}\allowbreak{}\texttt{\ AppendRows}\allowbreak{}
@@ -707,20 +536,19 @@ tạo \texttt{order\_seq} 5001--5003; đơn 139 và 278 chuyển
 
 Saved job chạy
 \texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{\ WHERE\ (\ "order\_}\allowbreak{}\texttt{seq"\ \textgreater{}\ 5000\ AND\ "order\_}\allowbreak{}\texttt{seq"\ \textless{}=}\allowbreak{}\texttt{\ 5003\ )}\allowbreak{}
-và chỉ thêm một file nhỏ \texttt{part-m-00002} (420 B) cạnh hai file
-528,815 B và 529,172 B của lần đầu. Đơn 139 và 278 vừa cập nhật không
-được nạp lại, vì \texttt{append} chỉ nhìn khóa mới.
-\texttt{lastmodified} thì lấy đủ 5 dòng. Do thư mục đích đã tồn tại,
-Sqoop chạy thêm một merge job
-(\texttt{Merged\ Map\ outputs=}\allowbreak{}\texttt{2}\allowbreak{}) để
+và chỉ thêm một file \texttt{part-m-00002} (420 B) cạnh hai file 528,815
+B và 529,172 B của lần đầu; đơn 139 và 278 vừa cập nhật không được nạp
+lại. Với \texttt{lastmodified}, do thư mục đích đã tồn tại, Sqoop chạy
+thêm một merge job
+(\texttt{Merged\ Map\ outputs=}\allowbreak{}\texttt{2}\allowbreak{})
 thay bản cũ của cùng \texttt{order\_id} bằng bản mới. Kết quả là một
-file \texttt{part-r-00000} (1,058,459 B), không trùng lặp, trong đó đơn
+file \texttt{part-r-00000} (1,058,459 B) không trùng lặp, trong đó đơn
 139 và 278 mang trạng thái \texttt{delivered} và \texttt{updated\_at}
-mới. Một chi tiết chúng tôi không để ý cho tới khi đọc log:
-\texttt{lastmodified} dùng cửa sổ nửa mở
+mới. Một chi tiết chúng tôi chỉ thấy khi đọc log: \texttt{lastmodified}
+dùng cửa sổ nửa mở
 \texttt{updated\_}\allowbreak{}\texttt{at\ \textgreater{}=}\allowbreak{}\texttt{\ lower\ AND\ updated\_}\allowbreak{}\texttt{at\ \textless{}\ upper}\allowbreak{},
-ngược với Spark ở phần sau. Các bước này ở Hình~\ref{fig:l04-sqoop-incr}
-và Hình~\ref{fig:l04-sqoop-merge}.
+ngược với Spark ở phần sau (Hình~\ref{fig:l04-sqoop-incr},
+Hình~\ref{fig:l04-sqoop-merge}).
 
 \begin{figure}
 \centering
@@ -734,15 +562,14 @@ sở và tạo saved job \texttt{orders\_incr}.}\label{fig:l04-sqoop-incr}
 \includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/06_sqoop_after_changes_merge_export.png}
 \caption{Sau
 \texttt{simulate\_}\allowbreak{}\texttt{changes}\allowbreak{} lần 1:
-saved job lấy 3 dòng mới, \texttt{lastmodified} kèm merge lấy 5 dòng, và
-export 5,000 record về PostgreSQL.}\label{fig:l04-sqoop-merge}
+saved job, \texttt{lastmodified} kèm merge và export về
+PostgreSQL.}\label{fig:l04-sqoop-merge}
 \end{figure}
 
-Mỗi lệnh Sqoop là một ứng dụng MapReduce trên YARN. ResourceManager liệt
-kê 8 ứng dụng (\texttt{orders.jar}, \texttt{customers.jar},
-\texttt{orders\_copy.jar}) đều kết thúc thành công
-(Hình~\ref{fig:l04-yarn}); JobHistory tương ứng ở
-Hình~\ref{fig:l04-jh-sqoop}.
+ResourceManager liệt kê 8 ứng dụng MapReduce do Sqoop nộp
+(\texttt{orders.jar}, \texttt{customers.jar},
+\texttt{orders\_copy.jar}), đều thành công (Hình~\ref{fig:l04-yarn},
+Hình~\ref{fig:l04-jh-sqoop}).
 
 \begin{figure}
 \centering
@@ -759,9 +586,13 @@ tất.}\label{fig:l04-jh-sqoop}
 \end{figure}
 
 \subsection{Spark JDBC: đọc song song và ghi
-Parquet}\label{spark-jdbc-ux111ux1ecdc-song-song-vuxe0-ghi-parquet}
+Parquet}\label{sec:l04-spark-full}
 
-Script lấy cận bằng
+Nguồn JDBC của Spark nhận \texttt{partitionColumn}, \texttt{lowerBound},
+\texttt{upperBound} và \texttt{numPartitions}, tính bước
+\(s = (\text{upper} - \text{lower}) / n\) rồi sinh \(n\) mệnh đề WHERE;
+partition đầu và cuối không có cận ngoài {[}2{]}. Script lấy cận thật
+bằng
 \texttt{SELECT\ min(order\_}\allowbreak{}\texttt{seq)\ AS\ lo,}\allowbreak{}\texttt{\ max(order\_}\allowbreak{}\texttt{seq)\ AS\ hi\ FROM\ orders}\allowbreak{},
 nhận \texttt{1\ ..\ 5003}, rồi đọc theo ba cách
 (Bảng~\ref{tbl:l04-spark-read}).
@@ -816,13 +647,24 @@ sinh:
 và
 \texttt{WHERE\ "order\_}\allowbreak{}\texttt{seq"\ \textgreater{}=}\allowbreak{}\texttt{\ 3752}\allowbreak{}.
 Bước chia là \((5003-1)/4 \approx 1250\), nên partition đầu có 1,251
-dòng (1 đến 1251) và partition cuối có 1,252 dòng (3752 đến 5003). Vì
-lệnh là \texttt{count()}, Spark chỉ gửi \texttt{SELECT\ 1}, tức column
-pruning đã được đẩy xuống SQL. Với cột timestamp, partition đầu là
-\texttt{\textless{}\ \textquotesingle{}2017-06-02\ 00:}\allowbreak{}\texttt{00:}\allowbreak{}\texttt{00\textquotesingle{}\ or\ .}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{\ is\ null}\allowbreak{}
-và partition cuối là
-\texttt{\textgreater{}=}\allowbreak{}\texttt{\ \textquotesingle{}2018-04-02\ 00:}\allowbreak{}\texttt{00:}\allowbreak{}\texttt{00\textquotesingle{}}\allowbreak{};
-số dòng tăng dần theo thời gian vì lượng đơn hàng của Olist tăng dần.
+dòng và partition cuối 1,252 dòng. Vì lệnh là \texttt{count()}, Spark
+chỉ gửi \texttt{SELECT\ 1} (column pruning đẩy xuống SQL). Với cột
+timestamp, partition đầu là
+\texttt{\textless{}\ \textquotesingle{}2017-06-02\ 00:}\allowbreak{}\texttt{00:}\allowbreak{}\texttt{00\textquotesingle{}\ or\ .}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{\ is\ null}\allowbreak{},
+partition cuối là
+\texttt{\textgreater{}=}\allowbreak{}\texttt{\ \textquotesingle{}2018-04-02\ 00:}\allowbreak{}\texttt{00:}\allowbreak{}\texttt{00\textquotesingle{}}\allowbreak{},
+và số dòng tăng dần vì lượng đơn Olist tăng theo thời gian. Thời gian
+\texttt{count()} chỉ đo một lần, lần song song chạy sau lần naive nên có
+thể được lợi từ JVM đã nóng; con số 0.22 s chưa đủ để kết luận về hiệu
+năng.
+
+\begin{figure}
+\centering
+\includegraphics[width=1\linewidth,height=\textheight,keepaspectratio]{img/08_postgres_log_spark_sql.png}
+\caption{Nhật ký PostgreSQL ghi lại các câu
+\texttt{SELECT\ 1\ FROM\ orders\ WHERE\ .}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}
+theo khoảng do Spark sinh ra.}\label{fig:l04-pglog-spark}
+\end{figure}
 
 Ghi Parquet với
 \texttt{partitionBy("purchase\_}\allowbreak{}\texttt{month")}\allowbreak{}
@@ -831,10 +673,10 @@ mới) chứa đủ 5,003 dòng. Truy vấn lọc
 \texttt{purchase\_}\allowbreak{}\texttt{month\ =}\allowbreak{}\texttt{\ \textquotesingle{}2018-08\textquotesingle{}}\allowbreak{}
 có physical plan chứa
 \texttt{PartitionFilters:}\allowbreak{}\texttt{\ {[}isnotnull(purchase\_}\allowbreak{}\texttt{month\#118),}\allowbreak{}\texttt{\ (purchase\_}\allowbreak{}\texttt{month\#118\ =}\allowbreak{}\texttt{\ 2018-08){]}}\allowbreak{},
-nghĩa là partition pruning có tác dụng. Năm bảng còn lại được nạp mỗi
-bảng một partition (Bảng~\ref{tbl:l04-other}). Toàn bộ
-\texttt{spark-submit\ -\/-step\ full}\allowbreak{}, tính cả khởi động
-JVM, mất 21.2 s (Hình~\ref{fig:l04-spark-full}).
+tức partition pruning có tác dụng. Năm bảng còn lại được nạp mỗi bảng
+một partition (Bảng~\ref{tbl:l04-other}). Cả
+\texttt{spark-submit\ -\/-step\ full}\allowbreak{} mất 21.2 s
+(Hình~\ref{fig:l04-spark-full}).
 
 \begin{longtable}[]{@{}ll@{}}
 \caption{\label{tbl:l04-other}Số dòng các bảng phụ được Spark nạp sang
@@ -859,23 +701,19 @@ sellers & 312 \\
 \begin{figure}
 \centering
 \includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/07_spark_full.png}
-\caption{Kết quả \texttt{spark-submit\ -\/-step\ full}\allowbreak{}: số
-partition, thời gian đếm, số dòng mỗi partition, kết quả ghi Parquet và
+\caption{Kết quả \texttt{spark-submit\ -\/-step\ full}\allowbreak{}, gồm
 physical plan có
 \texttt{PartitionFilters}\allowbreak{}.}\label{fig:l04-spark-full}
 \end{figure}
 
-\begin{figure}
-\centering
-\includegraphics[width=1\linewidth,height=\textheight,keepaspectratio]{img/08_postgres_log_spark_sql.png}
-\caption{Nhật ký PostgreSQL ghi lại các câu
-\texttt{SELECT\ 1\ FROM\ orders\ WHERE\ .}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}
-theo khoảng do Spark sinh ra.}\label{fig:l04-pglog-spark}
-\end{figure}
-
-Trên Spark UI của ứng dụng \texttt{L04-jdbc-full}, các stage đọc song
-song có 4/4 task và stage ghi Parquet có 4/4 task với đầu ra 680.4 KiB
-(Hình~\ref{fig:l04-spark-jobs}, Hình~\ref{fig:l04-spark-stages}).
+Trên Spark UI, các stage đọc song song và stage ghi Parquet đều có 4/4
+task, đầu ra 680.4 KiB (Hình~\ref{fig:l04-spark-jobs},
+Hình~\ref{fig:l04-spark-stages}). Trên HDFS,
+\texttt{/}\allowbreak{}\texttt{data/}\allowbreak{}\texttt{olist/}\allowbreak{}\texttt{spark/}\allowbreak{}\texttt{orders}\allowbreak{}
+có 22 mục (\texttt{\_SUCCESS} và 21 thư mục \texttt{purchase\_month=}),
+dung lượng 680.4 K, còn
+\texttt{/}\allowbreak{}\texttt{data/}\allowbreak{}\texttt{olist/}\allowbreak{}\texttt{sqoop/}\allowbreak{}\texttt{orders\_}\allowbreak{}\texttt{full}\allowbreak{}
+là 1.0 M (Hình~\ref{fig:l04-hdfs}).
 
 \begin{figure}
 \centering
@@ -891,14 +729,6 @@ song có 4/4 task và stage ghi Parquet có 4/4 task với đầu ra 680.4 KiB
 ghi Parquet đều có 4 task.}\label{fig:l04-spark-stages}
 \end{figure}
 
-Kiểm tra bằng \texttt{hdfs\ dfs\ -ls} và \texttt{hdfs\ dfs\ -du}
-(Hình~\ref{fig:l04-hdfs}):
-\texttt{/}\allowbreak{}\texttt{data/}\allowbreak{}\texttt{olist/}\allowbreak{}\texttt{spark/}\allowbreak{}\texttt{orders}\allowbreak{}
-có 22 mục (\texttt{\_SUCCESS} và 21 thư mục \texttt{purchase\_month=}),
-dung lượng 680.4 K, còn
-\texttt{/}\allowbreak{}\texttt{data/}\allowbreak{}\texttt{olist/}\allowbreak{}\texttt{sqoop/}\allowbreak{}\texttt{orders\_}\allowbreak{}\texttt{full}\allowbreak{}
-là 1.0 M.
-
 \begin{figure}
 \centering
 \includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/09_spark_output_hdfs.png}
@@ -906,71 +736,35 @@ là 1.0 M.
 lượng với đầu ra văn bản của Sqoop.}\label{fig:l04-hdfs}
 \end{figure}
 
-\subsection{So sánh Sqoop và Spark
-JDBC}\label{so-suxe1nh-sqoop-vuxe0-spark-jdbc}
+\subsection{Spark nạp gia tăng bằng watermark}\label{sec:l04-spark-incr}
 
-Bảng~\ref{tbl:l04-compare} là bảng so sánh của Phần 3 trong đề bài, bổ
-sung thời gian đo được trong bài này.
+Bước \texttt{incremental} chốt cận trên bằng \texttt{now()} của cơ sở dữ
+liệu trước khi đọc, đọc cửa sổ
+\texttt{(wm\_}\allowbreak{}\texttt{old,}\allowbreak{}\texttt{\ wm\_}\allowbreak{}\texttt{new{]}}\allowbreak{}
+theo \texttt{updated\_at}, nối vào change log \texttt{orders\_changes},
+dựng snapshot \texttt{orders\_current} bằng \texttt{row\_number()} theo
+\texttt{order\_id} (sắp
+\texttt{updated\_}\allowbreak{}\texttt{at\ DESC,}\allowbreak{}\texttt{\ \_}\allowbreak{}\texttt{ingested\_}\allowbreak{}\texttt{at\ DESC}\allowbreak{}),
+và chỉ ghi watermark sau cùng:
 
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}@{}}
-\caption{\label{tbl:l04-compare}So sánh Sqoop và Spark JDBC khi nạp bảng
-\texttt{orders}.}\tabularnewline
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Tiêu chí
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Sqoop 1.4.7 (MapReduce)
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Spark JDBC
-\end{minipage} \\
-\midrule\noalign{}
-\endfirsthead
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Tiêu chí
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Sqoop 1.4.7 (MapReduce)
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Spark JDBC
-\end{minipage} \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-Tham số song song & \texttt{-m\ 4} + \texttt{-\/-split-by} &
-\texttt{numPartitions=4} + \texttt{partitionColumn} \\
-Cách tính khoảng & Sqoop tự chạy \texttt{SELECT\ MIN,\ MAX}
-(BoundingValsQuery) & người dùng truyền
-\texttt{lowerBound}/\texttt{upperBound} (chỉ là stride) \\
-Nạp gia tăng & Có sẵn:
-\texttt{-\/-incremental\ append/}\allowbreak{}\texttt{lastmodified}\allowbreak{},
-saved job lưu last value & Tự viết: truy vấn watermark + file trạng
-thái \\
-Xử lý UPDATE & \texttt{-\/-merge-key} (thêm một MR job) &
-\texttt{row\_number()} khử trùng lặp, hoặc MERGE vào table format \\
-Định dạng đầu ra & Văn bản CSV, 1.0 MB & Parquet Snappy phân vùng theo
-tháng, 680.4 KB \\
-Biến đổi khi nạp & Không (chỉ SQL qua \texttt{-\/-query}) & Đầy đủ
-DataFrame API (\texttt{withColumn}, \texttt{partitionBy}, \ldots) \\
-Thời gian nạp \texttt{orders} & 25.2 s MR job (28.5 s cả lệnh) & 3.10 s
-ghi Parquet (21.2 s cả \texttt{spark-submit} 6 bảng, gồm khởi động
-JVM) \\
-Trạng thái dự án & Apache Attic (ngừng từ 2021) & Đang phát triển \\
-\end{longtable}
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{wm\_new }\OperatorTok{=}\NormalTok{ jdbc(spark, query}\OperatorTok{=}\StringTok{"SELECT to\_char(now(), \textquotesingle{}YYYY{-}MM{-}DD HH24:MI:SS.US\textquotesingle{}) AS ts"}\NormalTok{).first().ts}
+\NormalTok{changed\_sql }\OperatorTok{=}\NormalTok{ (}\SpecialStringTok{f"(SELECT * FROM orders WHERE updated\_at \textgreater{} timestamp \textquotesingle{}}\SpecialCharTok{\{}\NormalTok{wm\_old}\SpecialCharTok{\}}\SpecialStringTok{\textquotesingle{}"}
+               \SpecialStringTok{f" AND updated\_at \textless{}= timestamp \textquotesingle{}}\SpecialCharTok{\{}\NormalTok{wm\_new}\SpecialCharTok{\}}\SpecialStringTok{\textquotesingle{}) AS changed\_orders"}\NormalTok{)}
+\CommentTok{\# ... ghi changes (kèm cột \_ingested\_at) vào orders\_changes, rồi dựng snapshot:}
+\NormalTok{log }\OperatorTok{=}\NormalTok{ spark.read.parquet(}\SpecialStringTok{f"}\SpecialCharTok{\{}\NormalTok{BASE}\SpecialCharTok{\}}\SpecialStringTok{/orders\_changes"}\NormalTok{)}
+\NormalTok{w }\OperatorTok{=}\NormalTok{ Window.partitionBy(}\StringTok{"order\_id"}\NormalTok{) }\OperatorTok{\textbackslash{}}
+\NormalTok{    .orderBy(F.col(}\StringTok{"updated\_at"}\NormalTok{).desc(), F.col(}\StringTok{"\_ingested\_at"}\NormalTok{).desc())}
+\NormalTok{current }\OperatorTok{=}\NormalTok{ log.withColumn(}\StringTok{"\_rn"}\NormalTok{, F.row\_number().over(w)).}\BuiltInTok{filter}\NormalTok{(}\StringTok{"\_rn = 1"}\NormalTok{).drop(}\StringTok{"\_rn"}\NormalTok{)}
+\NormalTok{current.write.mode(}\StringTok{"overwrite"}\NormalTok{).parquet(}\SpecialStringTok{f"}\SpecialCharTok{\{}\NormalTok{BASE}\SpecialCharTok{\}}\SpecialStringTok{/orders\_current"}\NormalTok{)}
+\NormalTok{spark.createDataFrame([(wm\_new,)], }\StringTok{"watermark string"}\NormalTok{).coalesce(}\DecValTok{1}\NormalTok{) }\OperatorTok{\textbackslash{}}
+\NormalTok{    .write.mode(}\StringTok{"overwrite"}\NormalTok{).json(}\SpecialStringTok{f"}\SpecialCharTok{\{}\NormalTok{BASE}\SpecialCharTok{\}}\SpecialStringTok{/\_state/orders\_watermark"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
 
-Sqoop chậm chủ yếu vì mỗi lệnh phải sinh mã, biên dịch lớp record và
-dựng một MapReduce job riêng với container YARN. Spark dùng một
-SparkSession cho cả 6 bảng và ghi thẳng ra định dạng cột có nén, nên đầu
-ra nhỏ hơn khoảng một phần ba.
-
-\subsection{Spark nạp gia tăng bằng
-watermark}\label{spark-nux1ea1p-gia-tux103ng-bux1eb1ng-watermark}
-
-Bước \texttt{incremental} được chạy ba lần
-(Bảng~\ref{tbl:l04-spark-incr}, Hình~\ref{fig:l04-spark-incr}).
+Kết quả ba lần chạy ở Bảng~\ref{tbl:l04-spark-incr} và
+Hình~\ref{fig:l04-spark-incr}.
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
@@ -1023,38 +817,94 @@ tạo 5004--5006, cập nhật đơn 337 và 355 & & & \\
 & 0 & 5,008 & 5,006 \\
 \end{longtable}
 
-Change log giữ mọi phiên bản: \(5003 + 5 = 5008\) dòng. Snapshot dùng
-\texttt{row\_number()} theo \texttt{order\_id}, sắp
-\texttt{updated\_}\allowbreak{}\texttt{at\ DESC,}\allowbreak{}\texttt{\ \_}\allowbreak{}\texttt{ingested\_}\allowbreak{}\texttt{at\ DESC}\allowbreak{},
-nên chỉ còn phiên bản mới nhất của mỗi đơn: \(5003 + 3 = 5006\), hai đơn
-được cập nhật không bị nhân đôi. Lần thứ ba đọc 0 dòng, tức watermark đã
-được lưu đúng và chạy lại không làm sai kết quả. Cận trên của lần trước
-trùng khít với cận dưới của lần sau.
+Change log giữ mọi phiên bản (\(5003 + 5 = 5008\)), còn snapshot chỉ giữ
+phiên bản mới nhất của mỗi đơn (\(5003 + 3 = 5006\)), nên hai đơn được
+cập nhật không bị nhân đôi. Lần thứ ba đọc 0 dòng: watermark được lưu
+đúng và chạy lại không làm sai kết quả. Cận trên của lần trước trùng
+khít với cận dưới của lần sau.
 
 \begin{figure}
 \centering
 \includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/10_spark_incremental_3runs.png}
-\caption{Ba lần chạy Spark \texttt{-\/-step\ incremental}\allowbreak{}:
-lần 1 đọc 5,003 dòng, lần 2 đọc 5 dòng thay đổi, lần 3 đọc 0
-dòng.}\label{fig:l04-spark-incr}
+\caption{Ba lần chạy Spark
+\texttt{-\/-step\ incremental}\allowbreak{}.}\label{fig:l04-spark-incr}
 \end{figure}
 
-\section{Thảo luận}\label{sec:l04-discussion}
+\subsection{So sánh Sqoop và Spark JDBC}\label{sec:l04-compare}
+
+Bảng so sánh của Phần 3 trong đề, kèm thời gian đo được, nằm ở
+Bảng~\ref{tbl:l04-compare}.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}@{}}
+\caption{\label{tbl:l04-compare}So sánh Sqoop và Spark JDBC khi nạp bảng
+\texttt{orders}.}\tabularnewline
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Tiêu chí
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Sqoop 1.4.7 (MapReduce)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Spark JDBC
+\end{minipage} \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Tiêu chí
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Sqoop 1.4.7 (MapReduce)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Spark JDBC
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Tham số song song & \texttt{-m\ 4} + \texttt{-\/-split-by} &
+\texttt{numPartitions=4} + \texttt{partitionColumn} \\
+Cách tính khoảng & Sqoop tự chạy \texttt{SELECT\ MIN,\ MAX}
+(BoundingValsQuery) & người dùng truyền
+\texttt{lowerBound}/\texttt{upperBound} (chỉ là stride) \\
+Nạp gia tăng & Có sẵn:
+\texttt{-\/-incremental\ append/}\allowbreak{}\texttt{lastmodified}\allowbreak{},
+saved job lưu last value & Tự viết: truy vấn watermark + file trạng
+thái \\
+Xử lý UPDATE & \texttt{-\/-merge-key} (thêm một MR job) &
+\texttt{row\_number()} khử trùng lặp, hoặc MERGE vào table format \\
+Định dạng đầu ra & Văn bản CSV, 1.0 MB & Parquet Snappy phân vùng theo
+tháng, 680.4 KB \\
+Biến đổi khi nạp & Không (chỉ SQL qua \texttt{-\/-query}) & Đầy đủ
+DataFrame API (\texttt{withColumn}, \texttt{partitionBy}, \ldots) \\
+Thời gian nạp \texttt{orders} & 25.2 s MR job (28.5 s cả lệnh) & 3.10 s
+ghi Parquet (21.2 s cả \texttt{spark-submit} 6 bảng, gồm khởi động
+JVM) \\
+Trạng thái dự án & Apache Attic (ngừng từ 2021) & Đang phát triển \\
+\end{longtable}
+
+Sqoop chậm chủ yếu vì mỗi lệnh phải sinh mã, biên dịch lớp record và
+dựng một MapReduce job riêng. Spark dùng một SparkSession cho cả 6 bảng
+và ghi thẳng ra định dạng cột có nén, nên đầu ra nhỏ hơn khoảng một phần
+ba. Tuy vậy mọi thứ chạy trên một máy với khoảng 1 MB dữ liệu, thời gian
+đo phản ánh chi phí khởi động nhiều hơn thông lượng, nên chênh lệch thời
+gian chỉ nên hiểu theo nghĩa định tính.
+
+\section{Trả lời câu hỏi checkpoint}\label{sec:l04-discussion}
 
 \subsection{Sqoop chạy câu SQL nào trước khi import, và từ đó ra 4 split
 bằng cách nào?}\label{sec:l04-q1}
 
-Trước khi import, Sqoop chạy
+Sqoop chạy bounding query
 \texttt{SELECT\ MIN("order\_}\allowbreak{}\texttt{seq"),}\allowbreak{}\texttt{\ MAX("order\_}\allowbreak{}\texttt{seq")\ FROM\ "orders"}\allowbreak{}
-(Hình~\ref{fig:l04-pglog-sqoop}) và nhận (1, 5000). Bộ chia số nguyên
-cắt đoạn này thành 4 khoảng bằng nhau về giá trị, mỗi khoảng rộng khoảng
-\((5000-1)/4 \approx 1250\). Mỗi map chạy
-\texttt{SELECT\ .}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{\ WHERE\ order\_}\allowbreak{}\texttt{seq\ \textgreater{}=}\allowbreak{}\texttt{\ lo\ AND\ order\_}\allowbreak{}\texttt{seq\ \textless{}\ hi}\allowbreak{},
-riêng khoảng cuối dùng \texttt{\textless{}=} để lấy cả giá trị MAX. Vì
-\texttt{order\_seq} liên tục từ 1 đến 5000 nên mỗi map nhận đúng 1,250
-dòng (Bảng~\ref{tbl:l04-sqoop-splits}). Điểm cần nhớ là Sqoop chia theo
-giá trị, không theo số dòng, và câu hỏi tiếp theo cho thấy hệ quả của
-việc đó.
+và nhận (1, 5000) (Hình~\ref{fig:l04-pglog-sqoop}). Bộ chia số nguyên
+cắt đoạn này thành 4 khoảng bằng nhau về giá trị, rộng khoảng
+\((5000-1)/4 \approx 1250\); mỗi map chạy
+\texttt{WHERE\ order\_}\allowbreak{}\texttt{seq\ \textgreater{}=}\allowbreak{}\texttt{\ lo\ AND\ order\_}\allowbreak{}\texttt{seq\ \textless{}\ hi}\allowbreak{},
+khoảng cuối dùng \texttt{\textless{}=} để lấy cả MAX
+(Bảng~\ref{tbl:l04-sqoop-splits}). Vì chia theo giá trị chứ không theo
+số dòng, các split chỉ đều khi cột chia phân bố đều.
 
 \subsection{\texorpdfstring{Vì sao các file \texttt{customers} không
 đều, và nếu dùng
@@ -1062,12 +912,12 @@ việc đó.
 thì
 sao?}{Vì sao các file customers không đều, và nếu dùng -\/-split-by customer\_id thì sao?}}\label{sec:l04-q2}
 
-Zip code của khách hàng Olist dồn về São Paulo (01xxx--19xxx), nên
-khoảng {[}1014, 24536) nhận 2,450 dòng trong khi {[}48057, 71578) chỉ có
-427 dòng (Bảng~\ref{tbl:l04-skew}, Bảng~\ref{tbl:l04-bucket}). Đây là
-data skew: task nặng nhất quyết định thời gian của cả job. Còn
-\texttt{customer\_id} là chuỗi hash kiểu text. Mặc định Sqoop từ chối
-chia theo cột text và báo lỗi, trừ khi bật
+Sqoop chia đều theo giá trị, nhưng zip code của khách hàng Olist dồn về
+São Paulo, nên khoảng đầu {[}1014, 24536) nhận gần nửa bảng còn khoảng
+{[}48057, 71578) rất ít (Bảng~\ref{tbl:l04-skew},
+Bảng~\ref{tbl:l04-bucket}). Đây là data skew: task nặng nhất quyết định
+thời gian của cả job. Còn \texttt{customer\_id} là chuỗi hash kiểu text;
+mặc định Sqoop từ chối chia theo cột text và báo lỗi, trừ khi bật
 \texttt{-Dorg.}\allowbreak{}\texttt{apache.}\allowbreak{}\texttt{sqoop.}\allowbreak{}\texttt{splitter.}\allowbreak{}\texttt{allow\_}\allowbreak{}\texttt{text\_}\allowbreak{}\texttt{splitter=}\allowbreak{}\texttt{true}\allowbreak{}.
 Kể cả khi bật, việc chia theo thứ tự chuỗi phụ thuộc collation nên split
 vẫn có thể lệch hoặc rỗng. Cột chia tốt nhất là cột số, phân bố đều và
@@ -1079,36 +929,31 @@ Spark có đọc dòng \texttt{order\_seq} = 9,999
 không?}{Với lowerBound=1, upperBound=5003, numPartitions=4, Spark có đọc dòng order\_seq = 9,999 không?}}\label{sec:l04-q3}
 
 Có đọc. \texttt{lowerBound} và \texttt{upperBound} chỉ dùng để tính bước
-chia, không phải bộ lọc. Nhật ký ở Hình~\ref{fig:l04-pglog-spark} cho
-thấy partition cuối là
+chia, không phải bộ lọc: partition cuối là
 \texttt{order\_}\allowbreak{}\texttt{seq\ \textgreater{}=}\allowbreak{}\texttt{\ 3752}\allowbreak{}
-và không có cận trên, nên dòng 9,999 rơi vào partition cuối. Tương tự,
-giá trị nhỏ hơn \texttt{lowerBound} và NULL rơi vào partition đầu. Cận
-sai không làm mất dữ liệu, nhưng nếu nhiều dòng nằm ngoài cận thì
-partition hai đầu sẽ phình to và gây skew. Vì vậy script lấy MIN/MAX
-thật trước khi đọc, và nhờ đó 4 partition gần đều nhau
-(Bảng~\ref{tbl:l04-spark-read}).
+không có cận trên (Hình~\ref{fig:l04-pglog-spark}), nên dòng 9,999 rơi
+vào partition cuối; giá trị nhỏ hơn \texttt{lowerBound} và NULL rơi vào
+partition đầu. Cận sai không làm mất dữ liệu, nhưng partition hai đầu sẽ
+phình to và gây skew. Vì vậy script lấy MIN/MAX thật trước khi đọc, nhờ
+đó 4 partition gần đều (Bảng~\ref{tbl:l04-spark-read}).
 
 \subsection{Vì sao phải chốt cận trên trước khi đọc, và chỉ lưu
 watermark sau khi ghi xong?}\label{sec:l04-q4}
 
-Script lấy \texttt{wm\_new\ =\ now()} của cơ sở dữ liệu trước khi đọc,
-rồi truy vấn
-\texttt{updated\_}\allowbreak{}\texttt{at\ \textgreater{}\ wm\_}\allowbreak{}\texttt{old\ AND\ updated\_}\allowbreak{}\texttt{at\ \textless{}=}\allowbreak{}\texttt{\ wm\_}\allowbreak{}\texttt{new}\allowbreak{}.
-Nếu lấy \texttt{now()} sau khi đọc, dòng nào được cập nhật trong lúc
-đang đọc sẽ có \texttt{updated\_at} nhỏ hơn watermark mới mà lại không
-nằm trong dữ liệu vừa đọc, và lần sau sẽ bỏ qua nó luôn. Cận trên cố
-định còn bảo đảm các partition JDBC song song cùng nhìn một cửa sổ, và
-các cửa sổ liên tiếp liền nhau mà không chồng lên nhau.
-Bảng~\ref{tbl:l04-spark-incr} cho thấy điều đó: lần 2 bắt đầu đúng tại
-10:51:08.121235, lần 3 tại 10:51:26.913767.
+Script lấy \texttt{wm\_new\ =\ now()} trước khi đọc, rồi truy vấn
+\texttt{updated\_}\allowbreak{}\texttt{at\ \textgreater{}\ wm\_}\allowbreak{}\texttt{old\ AND\ updated\_}\allowbreak{}\texttt{at\ \textless{}=}\allowbreak{}\texttt{\ wm\_}\allowbreak{}\texttt{new}\allowbreak{}
+(Mục~\ref{sec:l04-spark-incr}). Nếu lấy \texttt{now()} sau khi đọc, dòng
+được cập nhật trong lúc đang đọc sẽ có \texttt{updated\_at} nhỏ hơn
+watermark mới mà không nằm trong dữ liệu vừa đọc, và lần sau bị bỏ qua
+luôn. Cận trên cố định còn bảo đảm các partition JDBC song song cùng
+nhìn một cửa sổ, và các cửa sổ liên tiếp liền nhau mà không chồng lên
+nhau, đúng như cận của ba lần chạy ở Bảng~\ref{tbl:l04-spark-incr}.
 
-Về thứ tự lưu, nếu job chết giữa chừng thì watermark cũ vẫn còn, lần
-chạy lại sẽ đọc lại cả cửa sổ. Dữ liệu có thể bị trùng nhưng không mất
-(at-least-once), và phần trùng được loại bằng \texttt{row\_number()}
-theo \texttt{order\_id} khi dựng snapshot. Ngược lại, nếu lưu watermark
-trước rồi mới ghi và bước ghi thất bại, cửa sổ đó sẽ không bao giờ được
-đọc lại.
+Về thứ tự lưu, nếu job chết giữa chừng thì watermark cũ vẫn còn và lần
+chạy lại đọc lại cả cửa sổ. Dữ liệu có thể trùng nhưng không mất
+(\emph{at-least-once}), và phần trùng được loại bằng
+\texttt{row\_number()} khi dựng snapshot. Ngược lại, nếu lưu watermark
+trước rồi bước ghi thất bại, cửa sổ đó sẽ không bao giờ được đọc lại.
 
 \subsection{\texorpdfstring{Chế độ \texttt{append} hay
 \texttt{lastmodified} bắt được UPDATE, và chế độ nào bắt được
@@ -1116,83 +961,56 @@ DELETE?}{Chế độ append hay lastmodified bắt được UPDATE, và chế đ
 
 \texttt{append} chỉ dựa vào
 \texttt{order\_}\allowbreak{}\texttt{seq\ \textgreater{}\ last\_}\allowbreak{}\texttt{value}\allowbreak{}
-nên chỉ bắt được INSERT: saved job lấy 3 dòng mới
+nên chỉ bắt được INSERT: saved job chỉ lấy các đơn mới
 (Bảng~\ref{tbl:l04-sqoop-incr}). \texttt{lastmodified} dựa vào
-\texttt{updated\_at} nên bắt được cả INSERT và UPDATE: 5 dòng gồm 3 đơn
-mới cùng đơn 139 và 278; khi đó cần \texttt{-\/-merge-key} để gộp bản cũ
-với bản mới. Không chế độ nào bắt được DELETE, vì dòng đã xóa không còn
-trong bảng để truy vấn.
+\texttt{updated\_at} nên bắt được cả INSERT và UPDATE (thêm đơn 139 và
+278); khi đó cần \texttt{-\/-merge-key} để gộp bản cũ với bản mới. Không
+chế độ nào bắt được DELETE, vì dòng đã xóa không còn trong bảng để truy
+vấn.
 
 \subsection{\texorpdfstring{Watermark trên \texttt{updated\_at} không
 giải quyết được gì, và CDC khác ở
 đâu?}{Watermark trên updated\_at không giải quyết được gì, và CDC khác ở đâu?}}\label{sec:l04-q6}
 
-Vấn đề đầu tiên là DELETE: dòng bị xóa không bao giờ xuất hiện trong
-truy vấn, nên bản sao trên HDFS giữ lại dữ liệu đã không còn ở nguồn,
-trừ khi ứng dụng dùng soft delete hoặc so sánh cả snapshot. Thứ hai là
-các lần UPDATE trung gian: nếu một đơn đổi từ \texttt{shipped} sang
-\texttt{delivered} rồi \texttt{canceled} trong cùng một chu kỳ, chúng
-tôi chỉ thấy trạng thái cuối. Ngoài hai điểm đó, bản thân
-\texttt{updated\_at} có thể không đáng tin. Ứng dụng có thể quên cập
-nhật cột, đồng hồ máy chủ có thể lệch, hoặc một transaction dài commit
-sau khi watermark đã vượt qua timestamp của nó, và dòng đó bị sót. Cách
-này cũng tạo tải quét lên nguồn (cần chỉ mục trên \texttt{updated\_at}),
-còn độ trễ thì bằng chu kỳ lập lịch.
+Thứ nhất là DELETE: dòng bị xóa không bao giờ xuất hiện trong truy vấn,
+nên bản sao trên HDFS giữ lại dữ liệu đã không còn ở nguồn, trừ khi ứng
+dụng dùng soft delete hoặc so sánh cả snapshot. Thứ hai là các lần
+UPDATE trung gian: nếu một đơn đổi từ \texttt{shipped} sang
+\texttt{delivered} rồi \texttt{canceled} trong cùng một chu kỳ, chỉ
+trạng thái cuối được thấy. Ngoài ra \texttt{updated\_at} có thể không
+đáng tin: ứng dụng quên cập nhật cột, đồng hồ máy chủ lệch, hoặc một
+transaction dài commit sau khi watermark đã vượt qua timestamp của nó và
+dòng đó bị sót. Cách này cũng tạo tải quét lên nguồn (cần chỉ mục trên
+\texttt{updated\_at}), và độ trễ bằng chu kỳ lập lịch.
 
-CDC (Debezium, sẽ làm ở L08) không truy vấn bảng mà đọc WAL của
-PostgreSQL qua logical replication {[}7{]}, {[}8{]}. Mọi INSERT, UPDATE
-và DELETE thành sự kiện theo thứ tự commit, kèm ảnh trước và sau, không
-phụ thuộc cột \texttt{updated\_at}, gần như không tạo tải truy vấn và
+CDC (Debezium, sẽ làm ở L08) không truy vấn bảng mà đọc write-ahead log
+(WAL) của PostgreSQL qua logical decoding {[}3{]}, {[}4{]}. Mọi INSERT,
+UPDATE và DELETE thành sự kiện theo thứ tự commit, kèm ảnh trước và sau,
+không phụ thuộc \texttt{updated\_at}, gần như không tạo tải truy vấn và
 trễ chỉ vài giây.
 
 \subsection{\texorpdfstring{Điều gì xảy ra với cơ sở dữ liệu nguồn khi
 đặt \texttt{-m\ 50} hoặc
 \texttt{numPartitions=}\allowbreak{}\texttt{50}\allowbreak{}?}{Điều gì xảy ra với cơ sở dữ liệu nguồn khi đặt -m 50 hoặc numPartitions=50?}}\label{sec:l04-q7}
 
-Khi đó có 50 kết nối đồng thời, mỗi kết nối chạy một range scan. Con số
-này dễ chạm \texttt{max\_connections} (PostgreSQL mặc định 100) và ứng
-dụng production sẽ không lấy được kết nối. Các truy vấn còn tranh CPU,
-I/O và buffer cache với tải OLTP; nếu cơ sở dữ liệu đã là nút thắt thì
-tốc độ gần như không tăng. Với bảng 5,000 dòng, mỗi task chỉ còn khoảng
-100 dòng và chi phí khởi tạo lớn hơn lợi ích. Thực tế nên giữ khoảng
-4--8 kết nối và thống nhất với DBA, đọc từ read replica hoặc ngoài giờ
-cao điểm, và đặt \texttt{fetchsize} hợp lý.
-
-\subsection{Hạn chế của thực
-nghiệm}\label{hux1ea1n-chux1ebf-cux1ee7a-thux1ef1c-nghiux1ec7m}
-
-Mọi thứ chạy trên một máy: HDFS một DataNode, YARN một NodeManager,
-Spark local mode, các task cùng dùng chung một máy và một cơ sở dữ liệu.
-Thời gian đo vì vậy phản ánh chi phí khởi động nhiều hơn thông lượng, và
-với khoảng 1 MB dữ liệu thì so sánh 25.2 s với 3.10 s chỉ nên hiểu theo
-nghĩa định tính. Thời gian \texttt{count()} chỉ đo một lần, và lần đọc
-song song chạy sau lần naive nên có thể được lợi từ JVM đã nóng; con số
-0.22 s chưa đủ để kết luận về hiệu năng. Cuối cùng, do
-\texttt{simulate\_}\allowbreak{}\texttt{changes.}\allowbreak{}\texttt{sql}\allowbreak{}
-chạy hai lần nên số dòng (5,003 trong Spark, 5,006 trong snapshot) khác
-với giá trị tham chiếu trong README.
+Nguồn nhận 50 kết nối đồng thời, mỗi kết nối một range scan. Con số này
+dễ chạm \texttt{max\_connections} (PostgreSQL mặc định 100) khiến ứng
+dụng production không lấy được kết nối, và các truy vấn tranh CPU, I/O,
+buffer cache với tải OLTP; nếu cơ sở dữ liệu đã là nút thắt thì tốc độ
+gần như không tăng. Với bảng 5,000 dòng, mỗi task chỉ còn khoảng 100
+dòng, chi phí khởi tạo lớn hơn lợi ích. Thực tế nên giữ khoảng 4--8 kết
+nối, thống nhất với DBA, đọc từ read replica hoặc ngoài giờ cao điểm.
 
 \section{Kết luận}\label{sec:l04-conclusion}
 
-Qua nhật ký SQL thật, bài này xác nhận cả Sqoop và Spark JDBC đều chia
-bảng theo khoảng giá trị của một cột. Sqoop tự tính cận bằng bounding
-query, còn Spark dùng cận do người dùng truyền vào và để hở partition
-hai đầu. Vì thế độ đều của các task phụ thuộc vào phân bố của cột chia:
-\texttt{order\_seq} cho 4 phần gần bằng nhau, còn zip code (2,450 so với
-427 dòng) và timestamp (782 so với 1,686 dòng) đều lệch. Ở phần nạp gia
-tăng, \texttt{append} chỉ bắt INSERT, còn \texttt{lastmodified} hay
-watermark trên \texttt{updated\_at} bắt thêm UPDATE. Pipeline Spark chốt
-cận trên trước khi đọc, lưu watermark sau khi ghi và khử trùng lặp bằng
-\texttt{row\_number()}; khi chạy lại nó cho kết quả đúng: 5 dòng rồi 0
-dòng.
-
-Nếu làm thật, chúng tôi sẽ dùng Spark JDBC thay Sqoop, chọn cột chia
-kiểu số có chỉ mục và lấy MIN/MAX thật làm cận, giới hạn số kết nối, đọc
-từ read replica và ghi ra Parquet phân vùng. Các bước tiếp theo có thể
-thử là dùng \texttt{predicates} để chia theo \texttt{order\_status},
-kiểm tra predicate pushdown, ghi vào table format có MERGE (Delta Lake,
-Iceberg), và chuyển sang CDC bằng Debezium (L08) để bắt DELETE cùng các
-phiên bản trung gian.
+Bài đã hoàn thành đủ phần Sqoop (nạp toàn phần, cột chia lệch,
+\texttt{append}, saved job, \texttt{lastmodified} kèm merge, export),
+phần Spark JDBC (đọc song song, Parquet phân vùng theo tháng, nạp gia
+tăng bằng watermark) và bảng so sánh. Nhật ký SQL cho thấy cả hai công
+cụ chia bảng theo khoảng giá trị, nên \texttt{order\_seq} cho các task
+đều còn zip code và timestamp thì lệch. \texttt{append} chỉ bắt INSERT,
+\texttt{lastmodified} và watermark bắt thêm UPDATE, còn DELETE và phiên
+bản trung gian cần CDC.
 
 \section*{Tài liệu tham khảo}\label{tuxe0i-liux1ec7u-tham-khux1ea3o}
 \addcontentsline{toc}{section}{Tài liệu tham khảo}
@@ -1204,30 +1022,20 @@ phiên bản trung gian.
 Spark SQL Guide.
 https://spark.apache.org/docs/latest/sql-data-sources-jdbc.html
 
-{[}3{]} M. Armbrust et al., ``Spark SQL: Relational Data Processing in
-Spark,'' in \emph{Proc. ACM SIGMOD}, 2015, pp.~1383--1394.
-
-{[}4{]} M. Zaharia et al., ``Resilient Distributed Datasets: A
-Fault-Tolerant Abstraction for In-Memory Cluster Computing,'' in
-\emph{Proc. USENIX NSDI}, 2012.
-
-{[}5{]} M. Kleppmann, \emph{Designing Data-Intensive Applications}.
-Sebastopol, CA: O'Reilly Media, 2017.
-
-{[}6{]} T. White, \emph{Hadoop: The Definitive Guide}, 4th
-ed.~Sebastopol, CA: O'Reilly Media, 2015.
-
-{[}7{]} The PostgreSQL Global Development Group, ``Logical Decoding,''
+{[}3{]} The PostgreSQL Global Development Group, ``Logical Decoding,''
 PostgreSQL Documentation.
 https://www.postgresql.org/docs/current/logicaldecoding.html
 
-{[}8{]} Debezium Community, ``Debezium Connector for PostgreSQL,''
+{[}4{]} Debezium Community, ``Debezium Connector for PostgreSQL,''
 Debezium Documentation.
 https://debezium.io/documentation/reference/stable/connectors/postgresql.html
 
-\section*{Phụ lục A: Danh mục tệp nộp
-kèm}\label{phux1ee5-lux1ee5c-a-danh-mux1ee5c-tux1ec7p-nux1ed9p-kuxe8m}
-\addcontentsline{toc}{section}{Phụ lục A: Danh mục tệp nộp kèm}
+\section*{Phụ lục: Tệp nộp
+kèm}\label{phux1ee5-lux1ee5c-tux1ec7p-nux1ed9p-kuxe8m}
+\addcontentsline{toc}{section}{Phụ lục: Tệp nộp kèm}
+
+Đoạn mã tự viết chính đã trích trong Mục~\ref{sec:l04-spark-incr}; tệp
+đầy đủ ở Bảng~\ref{tbl:l04-files}.
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
@@ -1252,99 +1060,11 @@ Nội dung
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-\texttt{sqoop\_part1.sh} & Lệnh Sqoop phần 1: explore, nạp toàn phần,
-nạp \texttt{customers} theo zip code, \texttt{append},
-\texttt{lastmodified} cơ sở, saved job \\
+\texttt{sqoop\_part1.sh},
 \texttt{spark\_}\allowbreak{}\texttt{jdbc\_}\allowbreak{}\texttt{ingest.}\allowbreak{}\texttt{py}\allowbreak{}
-& Đọc JDBC song song, ghi Parquet phân vùng, nạp gia tăng theo
-watermark, snapshot khử trùng lặp \\
-\texttt{01\_}\allowbreak{}\texttt{stack\_}\allowbreak{}\texttt{and\_}\allowbreak{}\texttt{source.}\allowbreak{}\texttt{txt}\allowbreak{}
-& \texttt{docker\ compose\ ps}\allowbreak{}, danh sách bảng, thống kê
-\texttt{orders} \\
-\texttt{02\_}\allowbreak{}\texttt{sqoop\_}\allowbreak{}\texttt{part1.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Log Sqoop phần 1, số dòng mỗi file, phân bố zip code, saved job \\
-\texttt{03\_}\allowbreak{}\texttt{postgres\_}\allowbreak{}\texttt{log\_}\allowbreak{}\texttt{sqoop\_}\allowbreak{}\texttt{queries.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Nhật ký PostgreSQL: bounding query và các câu SELECT của Sqoop \\
-\texttt{04\_}\allowbreak{}\texttt{simulate\_}\allowbreak{}\texttt{changes\_}\allowbreak{}\texttt{1.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Kết quả
-\texttt{simulate\_}\allowbreak{}\texttt{changes.}\allowbreak{}\texttt{sql}\allowbreak{}
-lần 1 \\
-\texttt{05\_}\allowbreak{}\texttt{sqoop\_}\allowbreak{}\texttt{part2\_}\allowbreak{}\texttt{after\_}\allowbreak{}\texttt{changes.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Saved job, \texttt{lastmodified} + merge, export \\
-\texttt{06\_}\allowbreak{}\texttt{spark\_}\allowbreak{}\texttt{full.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Kết quả \texttt{spark-submit\ -\/-step\ full}\allowbreak{} \\
-\texttt{07\_}\allowbreak{}\texttt{postgres\_}\allowbreak{}\texttt{log\_}\allowbreak{}\texttt{spark\_}\allowbreak{}\texttt{queries.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Nhật ký PostgreSQL: các truy vấn Spark (kèm một số truy vấn Sqoop
-append/saved job ở đầu) \\
-\texttt{08\_}\allowbreak{}\texttt{spark\_}\allowbreak{}\texttt{output\_}\allowbreak{}\texttt{hdfs.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Liệt kê và dung lượng đầu ra Spark và Sqoop trên HDFS \\
-\texttt{09\_}\allowbreak{}\texttt{spark\_}\allowbreak{}\texttt{incremental.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Ba lần chạy \texttt{-\/-step\ incremental}\allowbreak{} và
-\texttt{simulate\_}\allowbreak{}\texttt{changes.}\allowbreak{}\texttt{sql}\allowbreak{}
-lần 2 \\
-\texttt{img/} & Ảnh chụp terminal, YARN UI, JobHistory và Spark UI \\
+& Lệnh Sqoop phần 1; script Spark JDBC đã hoàn thành \\
+\texttt{01\_*.txt} đến \texttt{09\_*.txt}, \texttt{img/} & Log terminal,
+nhật ký SQL của PostgreSQL, ảnh chụp terminal và UI \\
 \end{longtable}
-
-\section*{Phụ lục B: Trích đoạn mã
-nguồn}\label{phux1ee5-lux1ee5c-b-truxedch-ux111oux1ea1n-muxe3-nguux1ed3n}
-\addcontentsline{toc}{section}{Phụ lục B: Trích đoạn mã nguồn}
-
-Các tệp được liệt kê ở Bảng~\ref{tbl:l04-files}. Đoạn đầu trong
-\texttt{sqoop\_part1.sh} nạp \texttt{customers} chia theo zip code:
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\ExtensionTok{sqoop}\NormalTok{ import }\StringTok{"}\VariableTok{$\{CONN}\OperatorTok{[@]}\VariableTok{\}}\StringTok{"} \AttributeTok{{-}{-}table}\NormalTok{ customers }\AttributeTok{{-}{-}split{-}by}\NormalTok{ customer\_zip\_code\_prefix }\AttributeTok{{-}m}\NormalTok{ 4 }\StringTok{"}\VariableTok{$\{NULLS}\OperatorTok{[@]}\VariableTok{\}}\StringTok{"} \DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}target{-}dir}\NormalTok{ /data/olist/sqoop/customers\_full }\AttributeTok{{-}{-}delete{-}target{-}dir}
-\end{Highlighting}
-\end{Shaded}
-
-Trong
-\texttt{spark\_}\allowbreak{}\texttt{jdbc\_}\allowbreak{}\texttt{ingest.}\allowbreak{}\texttt{py}\allowbreak{},
-bước \texttt{-\/-step\ full} đọc song song theo \texttt{order\_seq}, đọc
-theo timestamp rồi ghi Parquet phân vùng theo tháng:
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{orders }\OperatorTok{=}\NormalTok{ jdbc(spark, dbtable}\OperatorTok{=}\StringTok{"orders"}\NormalTok{, partitionColumn}\OperatorTok{=}\StringTok{"order\_seq"}\NormalTok{,}
-\NormalTok{              lowerBound}\OperatorTok{=}\BuiltInTok{str}\NormalTok{(b.lo), upperBound}\OperatorTok{=}\BuiltInTok{str}\NormalTok{(b.hi), numPartitions}\OperatorTok{=}\StringTok{"4"}\NormalTok{, fetchsize}\OperatorTok{=}\StringTok{"1000"}\NormalTok{)}
-\NormalTok{by\_ts }\OperatorTok{=}\NormalTok{ jdbc(spark, dbtable}\OperatorTok{=}\StringTok{"orders"}\NormalTok{, partitionColumn}\OperatorTok{=}\StringTok{"order\_purchase\_timestamp"}\NormalTok{,}
-\NormalTok{             lowerBound}\OperatorTok{=}\StringTok{"2017{-}01{-}01 00:00:00"}\NormalTok{, upperBound}\OperatorTok{=}\StringTok{"2018{-}09{-}01 00:00:00"}\NormalTok{,}
-\NormalTok{             numPartitions}\OperatorTok{=}\StringTok{"4"}\NormalTok{)}
-\NormalTok{out }\OperatorTok{=}\NormalTok{ orders.withColumn(}\StringTok{"purchase\_month"}\NormalTok{,}
-\NormalTok{                        F.date\_format(}\StringTok{"order\_purchase\_timestamp"}\NormalTok{, }\StringTok{"yyyy{-}MM"}\NormalTok{))}
-\NormalTok{out.write.mode(}\StringTok{"overwrite"}\NormalTok{).partitionBy(}\StringTok{"purchase\_month"}\NormalTok{).parquet(}\SpecialStringTok{f"}\SpecialCharTok{\{}\NormalTok{BASE}\SpecialCharTok{\}}\SpecialStringTok{/orders"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-Bước \texttt{-\/-step\ incremental}\allowbreak{} chốt cận trên bằng
-\texttt{now()} trước, sau đó mới đọc cửa sổ và nối vào change log:
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{wm\_new }\OperatorTok{=}\NormalTok{ jdbc(spark, query}\OperatorTok{=}\StringTok{"SELECT to\_char(now(), \textquotesingle{}YYYY{-}MM{-}DD HH24:MI:SS.US\textquotesingle{}) AS ts"}\NormalTok{).first().ts}
-\NormalTok{changed\_sql }\OperatorTok{=}\NormalTok{ (}\SpecialStringTok{f"(SELECT * FROM orders WHERE updated\_at \textgreater{} timestamp \textquotesingle{}}\SpecialCharTok{\{}\NormalTok{wm\_old}\SpecialCharTok{\}}\SpecialStringTok{\textquotesingle{}"}
-               \SpecialStringTok{f" AND updated\_at \textless{}= timestamp \textquotesingle{}}\SpecialCharTok{\{}\NormalTok{wm\_new}\SpecialCharTok{\}}\SpecialStringTok{\textquotesingle{}) AS changed\_orders"}\NormalTok{)}
-\NormalTok{changes }\OperatorTok{=}\NormalTok{ jdbc(spark, dbtable}\OperatorTok{=}\NormalTok{changed\_sql) }\OperatorTok{\textbackslash{}}
-\NormalTok{    .withColumn(}\StringTok{"\_ingested\_at"}\NormalTok{, F.lit(wm\_new).cast(}\StringTok{"timestamp"}\NormalTok{))}
-\NormalTok{changes.write.mode(}\StringTok{"append"}\NormalTok{).parquet(}\SpecialStringTok{f"}\SpecialCharTok{\{}\NormalTok{BASE}\SpecialCharTok{\}}\SpecialStringTok{/orders\_changes"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-Cuối bước này, script dựng snapshot từ change log, và watermark chỉ được
-ghi ở dòng cuối, sau khi snapshot đã ghi xong:
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{log }\OperatorTok{=}\NormalTok{ spark.read.parquet(}\SpecialStringTok{f"}\SpecialCharTok{\{}\NormalTok{BASE}\SpecialCharTok{\}}\SpecialStringTok{/orders\_changes"}\NormalTok{)}
-\NormalTok{w }\OperatorTok{=}\NormalTok{ Window.partitionBy(}\StringTok{"order\_id"}\NormalTok{) }\OperatorTok{\textbackslash{}}
-\NormalTok{    .orderBy(F.col(}\StringTok{"updated\_at"}\NormalTok{).desc(), F.col(}\StringTok{"\_ingested\_at"}\NormalTok{).desc())}
-\NormalTok{current }\OperatorTok{=}\NormalTok{ log.withColumn(}\StringTok{"\_rn"}\NormalTok{, F.row\_number().over(w)).}\BuiltInTok{filter}\NormalTok{(}\StringTok{"\_rn = 1"}\NormalTok{).drop(}\StringTok{"\_rn"}\NormalTok{)}
-\NormalTok{current.write.mode(}\StringTok{"overwrite"}\NormalTok{).parquet(}\SpecialStringTok{f"}\SpecialCharTok{\{}\NormalTok{BASE}\SpecialCharTok{\}}\SpecialStringTok{/orders\_current"}\NormalTok{)}
-\NormalTok{spark.createDataFrame([(wm\_new,)], }\StringTok{"watermark string"}\NormalTok{).coalesce(}\DecValTok{1}\NormalTok{) }\OperatorTok{\textbackslash{}}
-\NormalTok{    .write.mode(}\StringTok{"overwrite"}\NormalTok{).json(}\SpecialStringTok{f"}\SpecialCharTok{\{}\NormalTok{BASE}\SpecialCharTok{\}}\SpecialStringTok{/\_state/orders\_watermark"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
 
 \end{document}

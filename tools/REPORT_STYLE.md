@@ -120,3 +120,48 @@ Người đọc là giảng viên chấm bài. Báo cáo phải đọc như mộ
   câu hỏi tự nhiên ngắn gọn, không cần chữ "Câu hỏi N:".
 - Phụ lục B đổi tên thành "Phụ lục B: Trích đoạn mã nguồn {.unnumbered}": chỉ vài đoạn ngắn (mỗi đoạn tối đa khoảng
   15 dòng) thể hiện phần tự viết, kèm một câu giải thích trước mỗi đoạn.
+
+## Vòng 3: báo cáo thực hành gọn, không phải bài nghiên cứu (ưu tiên cao nhất, đè lên các mục trên)
+
+Thứ tự ưu tiên: thực nghiệm cụ thể > kết quả có bằng chứng > nhận xét đúng trọng tâm > lý thuyết bổ trợ.
+Sửa trên nội dung hiện có, không viết lại từ đầu khi không cần. Giữ văn phong vòng 2.
+
+**Cấu trúc mới** (bỏ Tóm tắt/Từ khóa, bỏ mục "Cơ sở lý thuyết" riêng):
+
+```markdown
+# <Tiêu đề lab> {#sec:l0X}
+
+## Mục tiêu và môi trường {#sec:l0X-intro}
+Một đoạn ngắn: lab làm gì, các task chính. Bảng môi trường (giữ bảng cũ nếu có, tinh giản).
+Dữ liệu dùng (nguồn, kích thước) gộp vào đây.
+
+## Thực hiện và kết quả {#sec:l0X-results}
+### <Task 1 theo đúng thứ tự trong README đề bài> {#sec:l0X-...}
+Mỗi task: cần kiểm chứng gì, đã làm gì (lệnh/cấu hình chính), kết quả (bảng/hình/output), nhận xét.
+Viết liền thành đoạn, không bắt buộc 4 tiểu mục. Lý thuyết chỉ 1-2 câu, đặt ngay chỗ cần để hiểu kết quả.
+
+## Trả lời câu hỏi checkpoint {#sec:l0X-discussion}
+### <câu hỏi ngắn> {#sec:l0X-qN}
+Trả lời trực tiếp, viện dẫn kết quả bằng @fig/@tbl/@sec, không chép lại số liệu đã có trong bảng.
+
+## Kết luận {#sec:l0X-conclusion}
+Một đoạn: các yêu cầu đã hoàn thành + vài kết quả chính. Không kiến thức mới, không hướng phát triển.
+Khuyến nghị production chỉ giữ nếu README/INSTRUCTOR_NOTES của lab yêu cầu (khi đó để ở mục riêng ngắn gọn).
+
+## Tài liệu tham khảo {.unnumbered}
+Chỉ các mục thực sự được trích trong bài (thường 2-4). Đánh số lại [1].. và sửa các trích dẫn trong thân bài.
+
+## Phụ lục: Trích đoạn mã nguồn {.unnumbered}
+Giữ vài đoạn mã tự viết ngắn (nếu đề yêu cầu hoàn thành TODO). Bỏ bảng danh mục tệp nếu không cần thiết,
+hoặc rút còn vài dòng.
+```
+
+**Cắt:** định nghĩa/kiến trúc/lịch sử công nghệ dài; công thức giới thiệu không dùng để tính; câu mở đầu và câu
+tổng kết lặp ý; mô tả quy trình mà phần kết quả đã mô tả lại; số liệu nhắc lại ở thảo luận/kết luận.
+
+**Giữ nguyên:** mọi lệnh/cấu hình quan trọng, mọi số liệu, bảng, hình (giữ nhãn #fig/#tbl cũ), các kết quả
+trước/sau, hiện tượng bất thường và trục trặc thật đã gặp, toàn bộ câu trả lời checkpoint (giữ nhãn qN).
+Không bịa kết quả/log/số liệu. Phần stretch/optional chưa làm thì không đưa vào.
+
+**Kỹ thuật:** mọi @fig/@tbl/@sec trong file phải trỏ tới nhãn tồn tại trong cùng file; mọi hình và bảng phải
+được nhắc ít nhất một lần. Không chữ TODO trong thân bài, không "—", không mũi tên.

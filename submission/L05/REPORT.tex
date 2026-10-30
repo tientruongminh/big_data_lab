@@ -201,136 +201,17 @@ Lớp:                  & 23KDL \\
 }
 \listoffigures
 \listoftables
-\section*{Tóm tắt}\label{tuxf3m-tux1eaft}
-\addcontentsline{toc}{section}{Tóm tắt}
+\section{Mục tiêu và môi trường}\label{sec:l05-intro}
 
-Bài thực hành này dùng API DataFrame của PySpark (Spark 4.1.3, chế độ
-\texttt{local{[}4{]}} trong Docker) để xử lý dữ liệu taxi vàng New York
-tháng 01/2024 gồm 2,964,624 chuyến. Chúng tôi đọc Parquet và CSV, kiểm
-tra cơ chế lazy evaluation, làm sạch dữ liệu theo năm luật, join với
-bảng khu vực, tổng hợp theo quận, dùng hàm cửa sổ, viết lại bằng Spark
-SQL, đọc kế hoạch vật lý cùng Spark UI và cuối cùng ghi Parquet phân
-vùng theo ngày. Dựng ba transformation mất 0.096 s và không sinh job,
-còn \texttt{count()} mất 0.28 s. Sau làm sạch còn 2,867,786 dòng (96.73
-\%). Kết quả SQL trùng với DataFrame. Nhờ tổng hợp partial trước
-shuffle, chỉ 24 dòng đi qua shuffle thay vì 2.87 triệu. Khi ghi không
-\texttt{repartition} thu được 56 tệp, có \texttt{repartition} thu được
-đúng 31 tệp, đổi lại thời gian ghi tăng từ 6.8 s lên 8.2 s. Ranh giới
-stage nằm ở các toán tử \texttt{Exchange}, và tổng hợp hai pha của Spark
-làm cùng việc với combiner trong MapReduce.
-
-\textbf{Từ khóa:} Apache Spark, PySpark, DataFrame, Spark SQL, lazy
-evaluation, Catalyst, AQE, broadcast join, Spark UI, partitioned
-Parquet.
-
-\section{Giới thiệu}\label{sec:l05-intro}
-
-Các bài trước đã đi qua HDFS, MapReduce và Hive. Bài này chuyển sang
-Apache Spark, hệ thống xử lý phân tán giữ dữ liệu trung gian trong bộ
-nhớ {[}1{]}. Với MapReduce, người lập trình tự viết pha map và reduce.
-Với Spark, ta chỉ mô tả phép tính qua DataFrame hoặc SQL, còn bộ tối ưu
-Catalyst {[}2{]} quyết định cách chạy. Vì vậy muốn dùng Spark cho đúng
-thì phải biết nó làm gì với đoạn mã: lúc nào job thật sự chạy, stage bị
-cắt ở đâu, dữ liệu có bị shuffle hay không.
-
-Mục tiêu cụ thể:
-
-\begin{enumerate}
-\def\labelenumi{\arabic{enumi}.}
-\tightlist
-\item
-  Tạo \texttt{SparkSession}, đọc Parquet và CSV, kiểm tra schema và số
-  partition đầu vào.
-\item
-  Kiểm chứng lazy evaluation: transformation chỉ dựng kế hoạch, action
-  mới chạy job.
-\item
-  Làm sạch dữ liệu thực (NULL, giá cước âm, quãng đường hoặc thời lượng
-  bất thường, ngày ngoài phạm vi) và xử lý chế độ ANSI mặc định của
-  Spark 4.
-\item
-  Thực hiện join, \texttt{groupBy/agg} và hàm cửa sổ
-  (\texttt{dense\_rank}, \texttt{lag}, tổng lũy kế).
-\item
-  Viết lại cùng logic bằng Spark SQL và so sánh kết quả.
-\item
-  Đọc kế hoạch vật lý bằng \texttt{explain("formatted")}\allowbreak{} và
-  đối chiếu với các stage trong Spark UI.
-\item
-  Ghi Parquet phân vùng và kiểm tra partition pruning khi đọc lại.
-\end{enumerate}
-
-Mục~\ref{sec:l05-theory} tóm lược lý thuyết, Mục~\ref{sec:l05-method} mô
-tả môi trường và quy trình, Mục~\ref{sec:l05-results} trình bày kết quả,
-Mục~\ref{sec:l05-discussion} trả lời tám câu hỏi checkpoint,
-Mục~\ref{sec:l05-conclusion} kết luận.
-
-\section{Cơ sở lý thuyết}\label{sec:l05-theory}
-
-\subsection{Driver, job, stage, task}\label{driver-job-stage-task}
-
-Một ứng dụng Spark gồm một driver điều phối và các executor thực thi.
-Mỗi action (\texttt{count}, \texttt{show}, \texttt{collect},
-\texttt{write}) sinh một hoặc nhiều job. DAG scheduler chia job thành
-các stage tại những chỗ cần trao đổi dữ liệu giữa các partition
-(shuffle), mỗi stage có một task cho mỗi partition {[}1{]}, {[}3{]}. Ở
-\texttt{local{[}4{]}}, driver và bốn luồng task chạy chung một JVM. Đây
-là mô hình cluster thu nhỏ nhưng vẫn giữ đủ các khái niệm trên.
-
-\subsection{Transformation, action và lazy
-evaluation}\label{transformation-action-vuxe0-lazy-evaluation}
-
-\texttt{filter}, \texttt{withColumn}, \texttt{select}, \texttt{join},
-\texttt{groupBy} là transformation. Chúng chỉ trả về một DataFrame mới
-mang cây kế hoạch logic, chưa đọc dữ liệu. Khi gọi action, Spark mới tối
-ưu cả kế hoạch rồi thực thi. Nhờ vậy Catalyst có thể gộp bộ lọc và đẩy
-chúng xuống nguồn dữ liệu trước khi đọc {[}2{]}.
-
-\subsection{Catalyst, AQE và tổng hợp hai
-pha}\label{catalyst-aqe-vuxe0-tux1ed5ng-hux1ee3p-hai-pha}
-
-Catalyst chuyển kế hoạch logic thành kế hoạch vật lý, áp dụng các quy
-tắc như predicate pushdown (đẩy điều kiện lọc xuống reader) và column
-pruning (chỉ đọc cột cần) {[}2{]}. Adaptive Query Execution (AQE) tối ưu
-lại kế hoạch ngay khi chạy, dựa trên thống kê thực của từng query stage,
-ví dụ gộp các partition shuffle nhỏ
-(\texttt{AQEShuffleRead\ coalesced}\allowbreak{}) {[}5{]}. Phép tổng hợp
-được tách hai pha: \texttt{HashAggregate} partial trước shuffle và final
-sau shuffle, tương đương combiner trong MapReduce {[}7{]}.
-
-\subsection{Chiến lược join}\label{chiux1ebfn-lux1b0ux1ee3c-join}
-
-Nếu một phía của join nhỏ hơn
-\texttt{spark.}\allowbreak{}\texttt{sql.}\allowbreak{}\texttt{autoBroadcastJoinThreshold}\allowbreak{}
-(mặc định 10 MB), Spark gửi bản sao phía đó tới mọi task (broadcast hash
-join) và không phải shuffle phía lớn. Khi cả hai phía đều lớn, Spark
-shuffle cả hai theo khóa rồi dùng sort-merge join {[}3{]}, {[}5{]}.
-
-\subsection{Chế độ ANSI trong Spark
-4}\label{chux1ebf-ux111ux1ed9-ansi-trong-spark-4}
-
-Từ Spark 4.0,
-\texttt{spark.}\allowbreak{}\texttt{sql.}\allowbreak{}\texttt{ansi.}\allowbreak{}\texttt{enabled}\allowbreak{}
-mặc định là \texttt{true}: chia cho 0 hay ép kiểu sai sẽ báo lỗi thay vì
-trả NULL như Spark 3. Muốn nhận NULL thì phải gọi tường minh
-\texttt{try\_divide}, \texttt{try\_cast} {[}6{]}.
-
-\subsection{Parquet phân vùng và partition
-pruning}\label{parquet-phuxe2n-vuxf9ng-vuxe0-partition-pruning}
-
-\texttt{DataFrameWriter.}\allowbreak{}\texttt{partitionBy(col)}\allowbreak{}
-ghi dữ liệu thành các thư mục con \texttt{col=value}. Khi đọc lại với bộ
-lọc trên cột phân vùng, Spark chỉ liệt kê và mở các thư mục khớp điều
-kiện (\texttt{PartitionFilters}\allowbreak{}) {[}4{]}.
-
-\section{Môi trường và phương pháp thực nghiệm}\label{sec:l05-method}
-
-\subsection{Môi trường}\label{muxf4i-trux1b0ux1eddng}
-
-Cấu hình ở Bảng~\ref{tbl:l05-env} lấy từ
-\texttt{conf/}\allowbreak{}\texttt{spark-defaults.}\allowbreak{}\texttt{conf}\allowbreak{},
-kiểm tra lại trong tab Environment của Spark UI
-(Hình~\ref{fig:l05-ui-env}).
+Bài này dùng API DataFrame của PySpark để xử lý dữ liệu taxi vàng New
+York tháng 01/2024 {[}5{]}: đọc Parquet và CSV, kiểm chứng lazy
+evaluation, làm sạch dữ liệu (kèm chế độ ANSI của Spark 4), join với
+bảng khu vực, tổng hợp, dùng hàm cửa sổ, viết lại bằng Spark SQL, đọc kế
+hoạch vật lý cùng Spark UI và ghi Parquet phân vùng theo ngày. Cấu hình
+ở Bảng~\ref{tbl:l05-env} lấy từ
+\texttt{conf/}\allowbreak{}\texttt{spark-defaults.}\allowbreak{}\texttt{conf}\allowbreak{}
+và được kiểm tra lại trong tab Environment (Hình~\ref{fig:l05-ui-env});
+dữ liệu đầu vào ở Bảng~\ref{tbl:l05-data}.
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
@@ -365,13 +246,13 @@ Bộ nhớ driver & 2 GB
 (\texttt{spark.}\allowbreak{}\texttt{driver.}\allowbreak{}\texttt{memory=}\allowbreak{}\texttt{2g}\allowbreak{}) \\
 \texttt{spark.}\allowbreak{}\texttt{sql.}\allowbreak{}\texttt{shuffle.}\allowbreak{}\texttt{partitions}\allowbreak{}
 & 8 (thay cho mặc định 200) \\
-\texttt{spark.}\allowbreak{}\texttt{sql.}\allowbreak{}\texttt{session.}\allowbreak{}\texttt{timeZone}\allowbreak{}
-& UTC \\
-\texttt{spark.}\allowbreak{}\texttt{sql.}\allowbreak{}\texttt{ansi.}\allowbreak{}\texttt{enabled}\allowbreak{}
-& \texttt{true} (mặc định của Spark 4) \\
-Event log & bật, ghi vào
-\texttt{file:}\allowbreak{}\texttt{/}\allowbreak{}\texttt{/}\allowbreak{}\texttt{/}\allowbreak{}\texttt{tmp/}\allowbreak{}\texttt{spark-events}\allowbreak{} \\
-Spark UI & cổng 4040, giữ sống bằng tham số \texttt{-\/-hold\ 300} \\
+Khác &
+\texttt{spark.}\allowbreak{}\texttt{sql.}\allowbreak{}\texttt{session.}\allowbreak{}\texttt{timeZone=}\allowbreak{}\texttt{UTC}\allowbreak{},
+\texttt{spark.}\allowbreak{}\texttt{sql.}\allowbreak{}\texttt{ansi.}\allowbreak{}\texttt{enabled=}\allowbreak{}\texttt{true}\allowbreak{}
+(mặc định Spark 4) \\
+Event log, UI & event log ghi vào
+\texttt{file:}\allowbreak{}\texttt{/}\allowbreak{}\texttt{/}\allowbreak{}\texttt{/}\allowbreak{}\texttt{tmp/}\allowbreak{}\texttt{spark-events}\allowbreak{};
+UI cổng 4040, giữ sống bằng \texttt{-\/-hold\ 300} \\
 \end{longtable}
 
 \begin{figure}
@@ -381,11 +262,6 @@ Spark UI & cổng 4040, giữ sống bằng tham số \texttt{-\/-hold\ 300} \\
 \texttt{spark.}\allowbreak{}\texttt{driver.}\allowbreak{}\texttt{memory=}\allowbreak{}\texttt{2g}\allowbreak{},
 event log được bật.}\label{fig:l05-ui-env}
 \end{figure}
-
-\subsection{Dữ liệu}\label{dux1eef-liux1ec7u}
-
-Hai tệp công khai của NYC Taxi and Limousine Commission {[}8{]} được mô
-tả ở Bảng~\ref{tbl:l05-data}.
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
@@ -430,76 +306,31 @@ Số cột
 & CSV có header & 12.0 KiB & 265 & 4 \\
 \end{longtable}
 
-Bảng chuyến đi có hai cột thời gian
-\texttt{tpep\_}\allowbreak{}\texttt{pickup\_}\allowbreak{}\texttt{datetime}\allowbreak{},
-\texttt{tpep\_}\allowbreak{}\texttt{dropoff\_}\allowbreak{}\texttt{datetime}\allowbreak{}
-kiểu \texttt{timestamp\_ntz}, các cột tiền (\texttt{fare\_amount},
-\texttt{tip\_amount}, \texttt{total\_amount}\ldots) kiểu \texttt{double}
-và mã khu vực \texttt{PULocationID}, \texttt{DOLocationID}. Bảng khu vực
-gồm \texttt{LocationID}, \texttt{Borough}, \texttt{Zone},
-\texttt{service\_zone}.
+Toàn bộ các bước nằm trong \texttt{l05\_basics.py}, chạy bằng
+\texttt{spark-submit} trong container. Để so sánh hai cách ghi Parquet
+mà không sửa mã, chúng tôi thêm cờ
+\texttt{-\/-no-repartition}\allowbreak{}. Lần đầu chạy với cờ này
+(\texttt{01\_}\allowbreak{}\texttt{run\_}\allowbreak{}\texttt{no\_}\allowbreak{}\texttt{repartition.}\allowbreak{}\texttt{txt}\allowbreak{}),
+lần thứ hai là lần chạy chính có \texttt{repartition} và
+\texttt{-\/-hold\ 300} để chụp Spark UI
+(\texttt{03\_}\allowbreak{}\texttt{run\_}\allowbreak{}\texttt{with\_}\allowbreak{}\texttt{repartition.}\allowbreak{}\texttt{txt}\allowbreak{}).
+Số liệu bên dưới lấy từ lần chạy chính nếu không ghi chú khác; hai lần
+cho kết quả giống hệt, trừ phần ghi Parquet và thời gian đo. Lần chạy
+chính kết thúc với mã 137 vì tiến trình bị dừng trong lúc
+\texttt{-\/-hold}, khi mọi kết quả đã in xong, nên số liệu không bị ảnh
+hưởng.
 
-\subsection{Quy trình}\label{quy-truxecnh}
+\section{Thực hiện và kết quả}\label{sec:l05-results}
 
-Toàn bộ thực nghiệm nằm trong script \texttt{l05\_basics.py}, chạy bằng
-\texttt{spark-submit} trong container. Các bước:
+\subsection{Đọc dữ liệu và lazy evaluation}\label{sec:l05-read}
 
-\begin{enumerate}
-\def\labelenumi{\arabic{enumi}.}
-\tightlist
-\item
-  Đọc Parquet và CSV, in schema, số dòng và số partition đầu vào.
-\item
-  Dựng ba transformation (\texttt{filter}, \texttt{withColumn},
-  \texttt{select}) rồi gọi \texttt{count()}, đo thời gian từng giai
-  đoạn.
-\item
-  Đếm NULL theo cột, đếm số dòng vi phạm từng luật làm sạch trong một
-  lần quét, lọc, điền giá trị mặc định, tính \texttt{tip\_pct} bằng
-  \texttt{F.try\_divide} và \texttt{cache()} DataFrame \texttt{clean}.
-\item
-  Join hai lần với bảng khu vực, theo điểm đón và theo điểm trả.
-\item
-  Tổng hợp theo quận đón và theo giờ đón.
-\item
-  Xếp hạng top-3 khu vực đón mỗi quận bằng \texttt{dense\_rank}; tính số
-  chuyến theo ngày, chênh lệch với ngày trước (\texttt{lag}) và doanh
-  thu lũy kế.
-\item
-  Tạo temp view \texttt{trips}, viết lại phép tổng hợp theo quận bằng
-  SQL và so sánh với DataFrame.
-\item
-  In
-  \texttt{by\_}\allowbreak{}\texttt{borough.}\allowbreak{}\texttt{explain("formatted")}\allowbreak{}.
-\item
-  Ghi \texttt{enriched} thành Parquet phân vùng theo
-  \texttt{pickup\_date}, đếm tệp, đọc lại ngày 2024-01-15.
-\end{enumerate}
-
-Tham số thay đổi giữa hai lần chạy là có hay không
-\texttt{repartition("pickup\_}\allowbreak{}\texttt{date")}\allowbreak{}
-trước khi ghi. Để khỏi sửa mã giữa hai lần, chúng tôi thêm cờ
-\texttt{-\/-no-repartition}\allowbreak{} vào script. Lần đầu chạy với cờ
-này. Lần thứ hai (lần chạy chính) dùng \texttt{repartition} kèm
-\texttt{-\/-hold\ 300} để Spark UI còn sống trong lúc chụp màn hình.
-Hành vi ANSI khi chia cho 0 được kiểm tra riêng bằng một đoạn thử nhỏ.
-
-\section{Kết quả thực nghiệm}\label{sec:l05-results}
-
-Số liệu dưới đây lấy từ log
-\texttt{03\_}\allowbreak{}\texttt{run\_}\allowbreak{}\texttt{with\_}\allowbreak{}\texttt{repartition.}\allowbreak{}\texttt{txt}\allowbreak{}
-nếu không ghi chú khác. Lần chạy không \texttt{repartition}
-(\texttt{01\_}\allowbreak{}\texttt{run\_}\allowbreak{}\texttt{no\_}\allowbreak{}\texttt{repartition.}\allowbreak{}\texttt{txt}\allowbreak{})
-cho kết quả giống hệt, trừ phần ghi Parquet và thời gian đo.
-
-\subsection{Đọc dữ liệu và đánh giá
-trễ}\label{ux111ux1ecdc-dux1eef-liux1ec7u-vuxe0-ux111uxe1nh-giuxe1-trux1ec5}
-
-Spark đọc được 19 cột, 2,964,624 dòng, chia thành 4 partition đầu vào
-(Hình~\ref{fig:l05-read}). Ba transformation ở bước 2 được dựng trong
-0.096 s và không sinh job nào. \texttt{count()} ngay sau đó trả về
-228,254 chuyến dài hơn 10 dặm sau 0.28 s. Ở lần chạy không
-\texttt{repartition}, hai con số là 0.076 s và 0.26 s, cùng bậc độ lớn.
+Spark đọc được 19 cột (hai cột thời gian kiểu \texttt{timestamp\_ntz}),
+2,964,624 dòng, chia thành 4 partition đầu vào
+(Hình~\ref{fig:l05-read}). Ba transformation (\texttt{filter},
+\texttt{withColumn}, \texttt{select}) được dựng trong 0.096 s và không
+sinh job nào; \texttt{count()} ngay sau đó trả về 228,254 chuyến dài hơn
+10 dặm sau 0.28 s. Ở lần chạy không \texttt{repartition}, hai con số là
+0.076 s và 0.26 s, cùng bậc độ lớn.
 
 \begin{figure}
 \centering
@@ -509,10 +340,9 @@ ba transformation mất 0.096 s, \texttt{count()} mất 0.28
 s.}\label{fig:l05-read}
 \end{figure}
 
-\subsection{Chất lượng dữ liệu và làm
-sạch}\label{chux1ea5t-lux1b0ux1ee3ng-dux1eef-liux1ec7u-vuxe0-luxe0m-sux1ea1ch}
+\subsection{Làm sạch dữ liệu và chế độ ANSI}\label{sec:l05-clean}
 
-Số NULL của mọi cột được đếm trong một phép \texttt{select} duy nhất. 14
+Số NULL của mọi cột được đếm trong một phép \texttt{select} duy nhất: 14
 cột không có NULL, còn đúng năm cột \texttt{passenger\_count},
 \texttt{RatecodeID},
 \texttt{store\_}\allowbreak{}\texttt{and\_}\allowbreak{}\texttt{fwd\_}\allowbreak{}\texttt{flag}\allowbreak{},
@@ -549,7 +379,8 @@ có NULL không bị loại mà được điền mặc định
 \texttt{passenger\_}\allowbreak{}\texttt{count=}\allowbreak{}\texttt{1}\allowbreak{},
 \texttt{RatecodeID=1},
 \texttt{congestion\_}\allowbreak{}\texttt{surcharge=}\allowbreak{}\texttt{0.}\allowbreak{}\texttt{0}\allowbreak{},
-\texttt{Airport\_fee=0.0}.
+\texttt{Airport\_fee=0.0}. DataFrame \texttt{clean} sau đó được
+\texttt{cache()}.
 
 \begin{figure}
 \centering
@@ -558,7 +389,8 @@ có NULL không bị loại mà được điền mặc định
 lại 2,867,786 dòng (96.73 \%).}\label{fig:l05-cleaning}
 \end{figure}
 
-Vì Spark 4 bật ANSI mode, phép chia
+Từ Spark 4.0, ANSI mode bật mặc định nên chia cho 0 sẽ báo lỗi thay vì
+trả NULL như Spark 3 {[}3{]}; phép chia
 \texttt{tip\_}\allowbreak{}\texttt{amount\ /}\allowbreak{}\texttt{\ fare\_}\allowbreak{}\texttt{amount}\allowbreak{}
 thông thường sẽ làm hỏng cả job nếu gặp mẫu số bằng 0, nên tỷ lệ tip
 được tính bằng \texttt{F.try\_divide}. Đoạn thử riêng
@@ -577,17 +409,15 @@ ném lỗi
 \texttt{{[}DIVIDE\_}\allowbreak{}\texttt{BY\_}\allowbreak{}\texttt{ZERO{]}}\allowbreak{}.}\label{fig:l05-ansi}
 \end{figure}
 
-\subsection{Join với bảng khu vực và tổng hợp theo
-quận}\label{join-vux1edbi-bux1ea3ng-khu-vux1ef1c-vuxe0-tux1ed5ng-hux1ee3p-theo-quux1eadn}
+\subsection{Join với bảng khu vực và tổng hợp}\label{sec:l05-join}
 
-Trước mỗi lần join, bảng khu vực được đổi tên cột
+Bảng khu vực được join hai lần, theo điểm đón và điểm trả. Trước mỗi lần
+join, cột được đổi tên
 (\texttt{PULocationID}/\texttt{pu\_borough}/\texttt{pu\_zone} và
-\texttt{DOLocationID}/\texttt{do\_borough}/\texttt{do\_zone}). Nếu không
-đổi tên, hai lần join cùng một bảng sẽ sinh hai cột \texttt{Borough}
-trùng tên và Spark báo
+\texttt{DOLocationID}/\texttt{do\_borough}/\texttt{do\_zone}); nếu
+không, hai cột \texttt{Borough} trùng tên sẽ gây lỗi
 \texttt{AMBIGUOUS\_}\allowbreak{}\texttt{REFERENCE}\allowbreak{}. Kết
-quả join và tổng hợp ở Hình~\ref{fig:l05-join}, số liệu theo quận đón ở
-Bảng~\ref{tbl:l05-borough}.
+quả ở Hình~\ref{fig:l05-join} và Bảng~\ref{tbl:l05-borough}.
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1579}}
@@ -638,12 +468,11 @@ Staten Island & 45 & 46.94 & 5.8 & 10.2 \\
 \end{longtable}
 
 Manhattan chiếm khoảng 89.7 \% số chuyến, toàn chuyến ngắn và rẻ. Giá
-cước trung bình ở Queens cao gấp khoảng 3.5 lần Manhattan, quãng đường
-cũng dài hơn nhiều, dễ hiểu vì JFK và LaGuardia đều nằm ở Queens. Tip ở
-Bronx chỉ 0.8 \%; chúng tôi đoán phần lớn tiền boa ở đây trả bằng tiền
-mặt nên không được ghi nhận, nhưng dữ liệu không đủ để khẳng định. Theo
-giờ đón, khung 18:00 đông nhất với 206,163 chuyến, khung 04:00 vắng nhất
-với 15,252 chuyến.
+cước trung bình ở Queens cao gấp khoảng 3.5 lần Manhattan, dễ hiểu vì
+JFK và LaGuardia đều nằm ở Queens. Tip ở Bronx chỉ 0.8 \%; chúng tôi
+đoán phần lớn tiền boa ở đây trả bằng tiền mặt nên không được ghi nhận,
+nhưng dữ liệu không đủ để khẳng định. Theo giờ đón, khung 18:00 đông
+nhất với 206,163 chuyến, khung 04:00 vắng nhất với 15,252 chuyến.
 
 \begin{figure}
 \centering
@@ -652,14 +481,13 @@ với 15,252 chuyến.
 theo giờ đón.}\label{fig:l05-join}
 \end{figure}
 
-\subsection{Hàm cửa sổ}\label{huxe0m-cux1eeda-sux1ed5}
+\subsection{Hàm cửa sổ}\label{sec:l05-window}
 
 Top-3 khu vực đón mỗi quận dùng \texttt{dense\_rank()} trên cửa sổ
-\texttt{partitionBy("pu\_}\allowbreak{}\texttt{borough")}\allowbreak{}.
-Bảng~\ref{tbl:l05-top3} ghi kết quả cho hai quận lớn nhất. Riêng Staten
-Island trả về hơn 3 dòng, do \texttt{dense\_rank} để nhiều khu vực đồng
-hạng: ba khu vực cùng 4 chuyến ở hạng 2 và bốn khu vực cùng 2 chuyến ở
-hạng 3.
+\texttt{partitionBy("pu\_}\allowbreak{}\texttt{borough")}\allowbreak{}
+(Bảng~\ref{tbl:l05-top3}). Riêng Staten Island trả về hơn 3 dòng vì
+\texttt{dense\_rank} để nhiều khu vực đồng hạng: ba khu vực cùng 4
+chuyến ở hạng 2 và bốn khu vực cùng 2 chuyến ở hạng 3.
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
@@ -701,10 +529,9 @@ Elmhurst (11,861) \\
 \end{longtable}
 
 Chuỗi theo ngày dùng \texttt{lag} và tổng lũy kế trên
-\texttt{Window.}\allowbreak{}\texttt{orderBy("pickup\_}\allowbreak{}\texttt{date")}\allowbreak{}.
-Bảng~\ref{tbl:l05-daily} và Hình~\ref{fig:l05-window} cho mười ngày đầu.
-Ngày 2024-01-07 (Chủ nhật) giảm 30.4 \% so với hôm trước, còn 2024-01-04
-tăng 25.3 \%.
+\texttt{Window.}\allowbreak{}\texttt{orderBy("pickup\_}\allowbreak{}\texttt{date")}\allowbreak{}
+(Bảng~\ref{tbl:l05-daily}, Hình~\ref{fig:l05-window}). Ngày 2024-01-07
+(Chủ nhật) giảm 30.4 \% so với hôm trước, còn 2024-01-04 tăng 25.3 \%.
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1304}}
@@ -761,12 +588,12 @@ Doanh thu lũy kế
 2024-01-10 & 92,475 & 2,526,815 & 90,303 & 2.4 & 23,722,904 \\
 \end{longtable}
 
-Lúc chạy bước này, log in ra cả chục dòng cảnh báo \emph{``No Partition
-Defined for Window operation! Moving all data to a single partition''}.
-Lúc đầu chúng tôi tưởng đó là lỗi, nhưng ở đây cảnh báo vô hại: cửa sổ
-chỉ áp lên DataFrame \texttt{daily} đã tổng hợp còn 31 dòng. Nếu áp cùng
-cửa sổ không \texttt{partitionBy} lên 2.87 triệu chuyến gốc thì toàn bộ
-dữ liệu dồn vào một task, mất song song và có thể tràn bộ nhớ.
+Log in ra cả chục dòng cảnh báo \emph{``No Partition Defined for Window
+operation! Moving all data to a single partition''}. Lúc đầu chúng tôi
+tưởng đó là lỗi, nhưng ở đây cảnh báo vô hại vì cửa sổ chỉ áp lên
+\texttt{daily} đã tổng hợp còn 31 dòng. Áp cùng cửa sổ lên 2.87 triệu
+chuyến gốc thì toàn bộ dữ liệu dồn vào một task, mất song song và có thể
+tràn bộ nhớ.
 
 \begin{figure}
 \centering
@@ -775,14 +602,13 @@ dữ liệu dồn vào một task, mất song song và có thể tràn bộ nh�
 \texttt{lag}, tổng lũy kế.}\label{fig:l05-window}
 \end{figure}
 
-\subsection{Spark SQL và kế hoạch vật
-lý}\label{spark-sql-vuxe0-kux1ebf-houx1ea1ch-vux1eadt-luxfd}
+\subsection{Spark SQL và kế hoạch vật lý}\label{sec:l05-plan}
 
 Truy vấn SQL trên temp view \texttt{trips} cho đúng bảng ở
 Bảng~\ref{tbl:l05-borough}, script in ra
 \texttt{SQL\ result\ =}\allowbreak{}\texttt{=}\allowbreak{}\texttt{\ DataFrame\ result:}\allowbreak{}\texttt{\ True}\allowbreak{}
-(Hình~\ref{fig:l05-sqlplan}). Hai API đi qua cùng Catalyst nên sinh cùng
-kế hoạch vật lý.
+(Hình~\ref{fig:l05-sqlplan}). Hai API đi qua cùng bộ tối ưu Catalyst
+{[}1{]} nên sinh cùng kế hoạch vật lý.
 
 \begin{figure}
 \centering
@@ -811,8 +637,9 @@ phát ra các cặp \texttt{sum}/\texttt{count}, qua
 \texttt{Exchange\ hashpartitioning(pu\_}\allowbreak{}\texttt{borough,}\allowbreak{}\texttt{\ 8)}\allowbreak{}
 (23) có \texttt{ShuffleQueryStage}\allowbreak{} thống kê
 \texttt{sizeInBytes=}\allowbreak{}\texttt{1968.}\allowbreak{}\texttt{0\ B,}\allowbreak{}\texttt{\ rowCount=}\allowbreak{}\texttt{24}\allowbreak{},
-qua \texttt{AQEShuffleRead\ coalesced}\allowbreak{} (25) rồi tới
-\texttt{HashAggregate} (26) final. Cuối cùng là
+qua \texttt{AQEShuffleRead\ coalesced}\allowbreak{} (25), tức Adaptive
+Query Execution gộp các partition shuffle nhỏ dựa trên thống kê lúc chạy
+{[}2{]}, rồi tới \texttt{HashAggregate} (26) final. Cuối cùng là
 \texttt{Exchange\ rangepartitioning(trips\ DESC\ NULLS\ LAST,}\allowbreak{}\texttt{\ 8)}\allowbreak{}
 (27) với \texttt{rowCount=8}, \texttt{AQEShuffleRead} (29) và
 \texttt{Sort} (30) cho \texttt{orderBy}.
@@ -825,13 +652,12 @@ qua \texttt{AQEShuffleRead\ coalesced}\allowbreak{} (25) rồi tới
 \texttt{HashAggregate} final.}\label{fig:l05-aggplan}
 \end{figure}
 
-\subsection{Spark UI}\label{spark-ui}
+\subsection{Spark UI}\label{sec:l05-ui}
 
 Trong tab Jobs (Hình~\ref{fig:l05-ui-jobs}), mỗi action (\texttt{count},
 \texttt{showString}, \texttt{collect}, \texttt{parquet}) sinh một hoặc
 nhiều job. Tab SQL/DataFrame (Hình~\ref{fig:l05-ui-sqllist}) liệt kê 21
-truy vấn; Bảng~\ref{tbl:l05-sqlq} chọn ra các truy vấn đáng xem theo log
-\texttt{ui\_}\allowbreak{}\texttt{sql\_}\allowbreak{}\texttt{queries.}\allowbreak{}\texttt{txt}\allowbreak{}.
+truy vấn; Bảng~\ref{tbl:l05-sqlq} chọn ra các truy vấn đáng xem.
 
 \begin{figure}
 \centering
@@ -847,22 +673,42 @@ job.}\label{fig:l05-ui-jobs}
 danh sách job.}\label{fig:l05-ui-sqllist}
 \end{figure}
 
-\begin{longtable}[]{@{}llrl@{}}
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2308}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2308}}
+  >{\raggedleft\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.3077}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2308}}@{}}
 \caption{\label{tbl:l05-sqlq}Một số truy vấn trong tab SQL (log
 \texttt{ui\_}\allowbreak{}\texttt{sql\_}\allowbreak{}\texttt{queries.}\allowbreak{}\texttt{txt}\allowbreak{}).}\tabularnewline
 \toprule\noalign{}
-Query & Action & Thời lượng (ms) & Ý nghĩa \\
+\begin{minipage}[b]{\linewidth}\raggedright
+Query
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Action
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Thời lượng (ms)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Ý nghĩa
+\end{minipage} \\
 \midrule\noalign{}
 \endfirsthead
 \toprule\noalign{}
-Query & Action & Thời lượng (ms) & Ý nghĩa \\
+\begin{minipage}[b]{\linewidth}\raggedright
+Query
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Action
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Thời lượng (ms)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Ý nghĩa
+\end{minipage} \\
 \midrule\noalign{}
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
 0 & \texttt{count} & 1,477 & đếm số dòng đầu vào \\
-4 & \texttt{count} & 268 & \texttt{count()} ở bước 2 (228,254 chuyến
-dài) \\
+4 & \texttt{count} & 268 & \texttt{count()} ở bước lazy evaluation
+(228,254 chuyến dài) \\
 8 & \texttt{count} & 6,225 & \texttt{clean.count()} lần đầu, materialize
 cache \\
 10 & \texttt{showString} & 1,473 &
@@ -875,9 +721,8 @@ cache \\
 
 Truy vấn 10
 (\texttt{by\_}\allowbreak{}\texttt{borough.}\allowbreak{}\texttt{show()}\allowbreak{})
-sinh bốn job 19--22, chi tiết ở Bảng~\ref{tbl:l05-jobs} (lấy từ
-\texttt{ui\_}\allowbreak{}\texttt{by\_}\allowbreak{}\texttt{borough\_}\allowbreak{}\texttt{jobs.}\allowbreak{}\texttt{txt}\allowbreak{}
-và ảnh chụp job).
+sinh bốn job 19--22 (Bảng~\ref{tbl:l05-jobs}, lấy từ
+\texttt{ui\_}\allowbreak{}\texttt{by\_}\allowbreak{}\texttt{borough\_}\allowbreak{}\texttt{jobs.}\allowbreak{}\texttt{txt}\allowbreak{}).
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2308}}
@@ -977,12 +822,16 @@ và Shuffle Read/Write.}\label{fig:l05-ui-stages}
 \end{figure}
 
 \subsection{Ghi Parquet phân vùng và partition
-pruning}\label{ghi-parquet-phuxe2n-vuxf9ng-vuxe0-partition-pruning}
+pruning}\label{sec:l05-write}
 
-Bảng~\ref{tbl:l05-write} so sánh hai cách ghi, dựa trên
+\texttt{enriched} được ghi bằng
+\texttt{partitionBy("pickup\_}\allowbreak{}\texttt{date")}\allowbreak{},
+một lần không và một lần có
+\texttt{repartition("pickup\_}\allowbreak{}\texttt{date")}\allowbreak{}
+(Bảng~\ref{tbl:l05-write}, theo
 \texttt{02\_}\allowbreak{}\texttt{files\_}\allowbreak{}\texttt{no\_}\allowbreak{}\texttt{repartition.}\allowbreak{}\texttt{txt}\allowbreak{},
 \texttt{04\_}\allowbreak{}\texttt{files\_}\allowbreak{}\texttt{with\_}\allowbreak{}\texttt{repartition.}\allowbreak{}\texttt{txt}\allowbreak{}
-và dòng thời gian ghi trong hai log chạy.
+và hai log chạy).
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.2727}}
@@ -1023,16 +872,18 @@ Tổng thời gian chạy script & 35.70 s & không so sánh được (có
 \texttt{-\/-hold\ 300}) \\
 \end{longtable}
 
-Cả hai lần đều ghi ra 31 thư mục ngày. Đọc lại với
+Cả hai lần đều ra 31 thư mục ngày. Đọc lại với
 \texttt{filter(pickup\_}\allowbreak{}\texttt{date\ =}\allowbreak{}\texttt{=}\allowbreak{}\texttt{\ \textquotesingle{}2024-01-15\textquotesingle{})}\allowbreak{}
 trả về 74,743 chuyến, và nút \texttt{Scan\ parquet} có
 \texttt{PartitionFilters:}\allowbreak{}\texttt{\ {[}isnotnull(pickup\_}\allowbreak{}\texttt{date),}\allowbreak{}\texttt{\ (pickup\_}\allowbreak{}\texttt{date\ =}\allowbreak{}\texttt{\ 2024-01-15){]}}\allowbreak{}
 (Hình~\ref{fig:l05-write}), tức chỉ một thư mục được mở. Ở đồ thị truy
 vấn 18 (Hình~\ref{fig:l05-ui-q18}), \texttt{repartition} thêm một
-\texttt{Exchange} mà cả 2,867,786 dòng phải đi qua. Trong tab Stages,
+\texttt{Exchange} mà cả 2,867,786 dòng phải đi qua; trong tab Stages,
 stage 75 ghi 276.6 MiB shuffle, stage 77 (6 task sau khi AQE gộp
 partition) đọc lại lượng đó và xuất 71.2 MiB Parquet
-(Hình~\ref{fig:l05-ui-stages}).
+(Hình~\ref{fig:l05-ui-stages}). Mỗi cấu hình chỉ chạy một lần, nên chênh
+lệch thời gian ghi mới là một mẫu, chưa đủ để kết luận chắc về chi phí
+của \texttt{repartition}.
 
 \begin{figure}
 \centering
@@ -1050,7 +901,7 @@ hoạch.}\label{fig:l05-write}
 dòng.}\label{fig:l05-ui-q18}
 \end{figure}
 
-\section{Thảo luận}\label{sec:l05-discussion}
+\section{Trả lời câu hỏi checkpoint}\label{sec:l05-discussion}
 
 \subsection{Vì sao tệp 48 MB lại có 4 partition đầu
 vào?}\label{sec:l05-q1}
@@ -1075,11 +926,11 @@ task 2.
 \subsection{Dòng nào là transformation, dòng nào là action, và sao dựng
 plan nhanh vậy?}\label{sec:l05-q2}
 
-\texttt{filter}, \texttt{withColumn}, \texttt{select} là transformation.
-Chúng chỉ thêm nút vào kế hoạch logic, không chạm dữ liệu, nên mất 0.096
-s và tab Jobs không có job mới. \texttt{count()} là action: Catalyst
-phân tích và tối ưu kế hoạch, DAG scheduler tạo stage và task, rồi mới
-đọc tệp. Thời gian 0.28 s khớp với truy vấn 4 (268 ms) trong
+\texttt{filter}, \texttt{withColumn}, \texttt{select} là transformation:
+chúng chỉ thêm nút vào kế hoạch logic, không chạm dữ liệu, nên tab Jobs
+không có job mới (Mục~\ref{sec:l05-read}). \texttt{count()} là action:
+Catalyst phân tích và tối ưu kế hoạch, DAG scheduler tạo stage và task,
+rồi mới đọc tệp; thời gian đo được khớp với truy vấn 4 trong
 Bảng~\ref{tbl:l05-sqlq}. \texttt{show}, \texttt{collect}, \texttt{take},
 \texttt{write} cũng là action. Dựng plan nhanh vì đó chỉ là thao tác
 trên cây biểu thức trong bộ nhớ driver, không có I/O và không cần liên
@@ -1089,13 +940,11 @@ lạc với executor.
 sinh bao nhiêu job, stage, và stage bị cắt ở
 đâu?}{by\_borough.show() sinh bao nhiêu job, stage, và stage bị cắt ở đâu?}}\label{sec:l05-q3}
 
-Theo Bảng~\ref{tbl:l05-jobs}, truy vấn 10 sinh \textbf{4 job (19--22)
-với 5 stage (25--29)}, trong đó stage 28 bị bỏ qua nên chỉ 4 stage thực
-sự chạy. Job 19 và 20 mỗi job 1 task, dựng hai bảng broadcast. Job 21
-chạy 4 task, mỗi task một partition của cache, làm quét cache, hai
-broadcast join, tổng hợp partial và ghi shuffle. Job 22 đọc shuffle đã
-được AQE gộp từ 8 xuống 1 partition, tổng hợp final và lấy kết quả có
-thứ tự cho \texttt{show()}.
+Truy vấn 10 sinh \textbf{4 job (19--22) với 5 stage (25--29)}, trong đó
+stage 28 bị bỏ qua nên chỉ 4 stage thực sự chạy
+(Bảng~\ref{tbl:l05-jobs}). Job 22 đọc shuffle đã được AQE gộp từ 8 xuống
+1 partition, tổng hợp final và lấy kết quả có thứ tự cho
+\texttt{show()}.
 
 Ranh giới stage nằm ở các \texttt{Exchange}: giữa stage 27 và stage 29
 là
@@ -1112,23 +961,19 @@ thêm
 \texttt{Exchange\ rangepartitioning(trips\ DESC,}\allowbreak{}\texttt{\ 8)}\allowbreak{}
 và \texttt{Sort}, tức thêm một stage, như trong \texttt{explain}
 (Hình~\ref{fig:l05-sqlplan}). Trước khi gọi \texttt{show()}, các phép
-join và \texttt{groupBy} ở bước 4--5 chưa chạy gì, chúng chỉ dựng DAG.
+join và \texttt{groupBy} chưa chạy gì, chúng chỉ dựng DAG.
 
 \subsection{Vì sao năm cột có cùng 140,162 NULL, và nên xử lý thế
 nào?}\label{sec:l05-q4}
 
-Năm cột trùng số NULL (Hình~\ref{fig:l05-cleaning}) vì đó là cùng
-140,162 chuyến: các bản ghi này thiếu cả nhóm trường metadata của chuyến
-(thường từ một nhà cung cấp, hoặc chuyến đón vẫy tay ngoài đường), chứ
-không phải năm lỗi độc lập. Nếu độc lập thì gần như không thể trùng số
-tuyệt đối ở cả năm cột. Có ba cách xử lý: (i) giữ dòng và điền mặc định
-như script đã làm
-(\texttt{passenger\_}\allowbreak{}\texttt{count=}\allowbreak{}\texttt{1}\allowbreak{},
-\texttt{RatecodeID=1}, phụ phí bằng 0); (ii) giữ NULL và chỉ bỏ các dòng
-này khỏi những chỉ số cần đến các cột đó; (iii) tách sang vùng
-quarantine để kiểm tra sau. Cách nào thì cũng nên thống nhất với chủ dữ
-liệu và ghi vào tài liệu pipeline. Chúng tôi chọn (i) cho đơn giản,
-nhưng điền
+Năm cột trùng số NULL (Hình~\ref{fig:l05-cleaning}) vì đó là cùng các
+chuyến: các bản ghi này thiếu cả nhóm trường metadata của chuyến (thường
+từ một nhà cung cấp, hoặc chuyến đón vẫy tay ngoài đường), chứ không
+phải năm lỗi độc lập. Nếu độc lập thì gần như không thể trùng số tuyệt
+đối ở cả năm cột. Có ba cách xử lý: (i) giữ dòng và điền mặc định như
+script đã làm (Mục~\ref{sec:l05-clean}); (ii) giữ NULL và chỉ bỏ các
+dòng này khỏi những chỉ số cần đến các cột đó; (iii) tách sang vùng
+quarantine để kiểm tra sau. Chúng tôi chọn (i) cho đơn giản, nhưng điền
 \texttt{passenger\_}\allowbreak{}\texttt{count=}\allowbreak{}\texttt{1}\allowbreak{}
 có thể làm lệch chỉ số số khách trung bình nếu sau này cần tới.
 
@@ -1143,20 +988,15 @@ task gộp trước các dòng của mình theo \texttt{pu\_borough}. Hàm
 \texttt{sum\#...}), vì trung bình của các trung bình không bằng trung
 bình chung, còn tổng và số đếm thì cộng dồn được. Mỗi task chỉ phát một
 dòng cho mỗi quận nó gặp, nên 4 task cộng lại chỉ có \textbf{24 dòng}
-qua shuffle (1968.0 B, Hình~\ref{fig:l05-ui-q10}) thay vì 2,867,786
-dòng. Sau
-\texttt{Exchange\ hashpartitioning(pu\_}\allowbreak{}\texttt{borough,}\allowbreak{}\texttt{\ 8)}\allowbreak{},
-cũng là ranh giới stage, \texttt{AQEShuffleRead\ coalesced}\allowbreak{}
-gộp các partition nhỏ, rồi \texttt{HashAggregate} (26) final dùng
-\texttt{count(1),}\allowbreak{}\texttt{\ avg(.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{)}\allowbreak{}
-để hợp nhất các kết quả partial.
+qua shuffle thay vì 2,867,786 dòng (Hình~\ref{fig:l05-ui-q10}). Sau
+\texttt{Exchange} (ranh giới stage), \texttt{HashAggregate} (26) final
+hợp nhất các kết quả partial (Hình~\ref{fig:l05-aggplan}).
 
-Cơ chế partial/final này là combiner của MapReduce ở L02 {[}7{]}:
-combiner chạy phía map để giảm dữ liệu trung gian trước khi gửi sang
-reducer. Việc tách \texttt{avg} thành \texttt{(sum,\ count)} giống cách
-làm ở bài mở rộng L02 (combiner tính giá cước trung bình), nơi combiner
-không được phát ra trung bình mà phải phát cặp tổng và số đếm. Lúc làm
-L02 chúng tôi phải tự nghĩ ra cặp này; ở Spark, Catalyst tự làm.
+Đây là combiner của MapReduce ở L02 {[}4{]}: gộp phía map để giảm dữ
+liệu trung gian trước khi gửi sang reducer. Việc tách \texttt{avg} thành
+\texttt{(sum,\ count)} giống bài mở rộng L02 (combiner tính giá cước
+trung bình); lúc đó chúng tôi phải tự nghĩ ra cặp này, còn ở Spark
+Catalyst tự làm.
 
 \subsection{Vì sao bảng khu vực được broadcast, và khi nào Spark chuyển
 sang sort-merge join?}\label{sec:l05-q6}
@@ -1165,13 +1005,12 @@ Bảng khu vực chỉ có 265 dòng (tệp 12 KB, khoảng 1 MB trong bộ nh�
 \texttt{Statistics(sizeInBytes=}\allowbreak{}\texttt{1026.}\allowbreak{}\texttt{1\ KiB)}\allowbreak{}),
 nhỏ hơn nhiều so với ngưỡng
 \texttt{spark.}\allowbreak{}\texttt{sql.}\allowbreak{}\texttt{autoBroadcastJoinThreshold}\allowbreak{}
-mặc định 10 MB. Spark gửi một bản sao tới mọi task nên 2,867,786 chuyến
-không phải shuffle; trên Hình~\ref{fig:l05-ui-q10},
+mặc định 10 MB {[}2{]}. Spark gửi một bản sao tới mọi task nên 2,867,786
+chuyến không phải shuffle; trên Hình~\ref{fig:l05-ui-q10},
 \texttt{BroadcastHashJoin}\allowbreak{} nằm chung một khối
 WholeStageCodegen với phép quét cache. Khi cả hai phía đều vượt ngưỡng,
 khi ngưỡng đặt bằng -1, hoặc khi thống kê ước lượng vượt ngưỡng, Spark
-shuffle cả hai phía theo khóa join và dùng SortMergeJoin. Bài L06 sẽ đo
-trực tiếp chênh lệch giữa hai chiến lược.
+shuffle cả hai phía theo khóa join và dùng SortMergeJoin.
 
 \subsection{\texorpdfstring{\texttt{cache()} thay đổi gì trong plan và
 UI, và khi nào không nên
@@ -1182,8 +1021,8 @@ Sau \texttt{cache()}, kế hoạch đọc từ
 thay vì quét và lọc lại Parquet. Nhánh \texttt{Scan\ parquet} vẫn còn
 trên đồ thị nhưng ra 0 dòng (Hình~\ref{fig:l05-ui-q10}). Tab Storage
 hiện RDD được cache (Hình~\ref{fig:l05-ui-storage}). Theo
-Bảng~\ref{tbl:l05-sqlq}, \texttt{clean.count()} lần đầu (truy vấn 8) mất
-6,225 ms vì phải materialize cache, còn các truy vấn dùng cache sau đó
+Bảng~\ref{tbl:l05-sqlq}, \texttt{clean.count()} lần đầu (truy vấn 8)
+chậm hẳn vì phải materialize cache, còn các truy vấn dùng cache sau đó
 (9--17) chỉ mất 396 ms đến 1,473 ms.
 
 Không nên cache khi dữ liệu chỉ dùng một lần, hoặc khi nó không vừa bộ
@@ -1201,143 +1040,57 @@ trước
 \texttt{partitionBy} ghi một tệp cho mỗi cặp (task, giá trị phân vùng)
 mà task đó chứa. Không \texttt{repartition} thì mỗi task có thể chứa
 dòng của nhiều ngày, số tệp tối đa là \(N \times 31\) với \(N\) task, ở
-đây là \(4 \times 31 = 124\). Chúng tôi đo được 56 tệp
-(Bảng~\ref{tbl:l05-write}), ít hơn giới hạn khá nhiều. Lý do là tệp
-nguồn gần như đã sắp theo thời gian, mỗi task chỉ chứa một dải ngày liền
-nhau và chỉ vài ngày bị tách giữa hai task (như 2024-01-15 có
-\texttt{part-00001} và \texttt{part-00003}). Với dữ liệu không có thứ tự
-và hàng trăm task trên cluster thật, con số sẽ lên tới hàng nghìn tệp
-nhỏ, gây áp lực cho NameNode và làm chậm việc đọc.
+đây là \(4 \times 31 = 124\). Số tệp đo được ở Bảng~\ref{tbl:l05-write}
+ít hơn giới hạn khá nhiều, vì tệp nguồn gần như đã sắp theo thời gian:
+mỗi task chỉ chứa một dải ngày liền nhau và chỉ vài ngày bị tách giữa
+hai task (như 2024-01-15). Với dữ liệu không có thứ tự và hàng trăm task
+trên cluster thật, con số sẽ lên tới hàng nghìn tệp nhỏ, gây áp lực cho
+NameNode và làm chậm việc đọc.
 
 \texttt{repartition("pickup\_}\allowbreak{}\texttt{date")}\allowbreak{}
-shuffle trước để mọi dòng của một ngày về cùng một task, nên ra
-\textbf{đúng 31 tệp, mỗi ngày một tệp}. Cái giá là một lần shuffle toàn
-bộ dữ liệu (276.6 MiB, Hình~\ref{fig:l05-ui-q18}), thời gian ghi tăng từ
-6.8 s lên 8.2 s. Với dữ liệu lệch (skew), một ngày quá lớn sẽ dồn vào
-một task và sinh một tệp khổng lồ; khi đó có thể dùng
+shuffle trước để mọi dòng của một ngày về cùng một task, nên mỗi ngày
+đúng một tệp. Cái giá là một lần shuffle toàn bộ dữ liệu
+(Mục~\ref{sec:l05-write}, Hình~\ref{fig:l05-ui-q18}) và thời gian ghi
+tăng (Bảng~\ref{tbl:l05-write}). Với dữ liệu lệch (skew), một ngày quá
+lớn sẽ dồn vào một task và sinh một tệp khổng lồ; khi đó có thể dùng
 \texttt{repartition(n,}\allowbreak{}\texttt{\ "pickup\_}\allowbreak{}\texttt{date",}\allowbreak{}\texttt{\ salt)}\allowbreak{}
 hoặc \texttt{maxRecordsPerFile}\allowbreak{}.
 
-\subsection{Hạn chế của thực
-nghiệm}\label{hux1ea1n-chux1ebf-cux1ee7a-thux1ef1c-nghiux1ec7m}
-
-Mọi thứ chạy ở \texttt{local{[}4{]}} trên một máy, không có độ trễ mạng
-thật, shuffle chỉ là ghi và đọc đĩa cục bộ. Dữ liệu chỉ một tháng
-(khoảng 48 MB), nên các khác biệt dưới một giây bị nhiễu khởi động JVM
-ảnh hưởng nhiều. Mỗi cấu hình chỉ chạy một lần, nên chênh lệch 6.8 s và
-8.2 s mới là một mẫu, chưa đủ để kết luận chắc về chi phí của
-\texttt{repartition}. Lần chạy chính kết thúc với mã 137 vì tiến trình
-bị dừng trong lúc \texttt{-\/-hold\ 300}, khi mọi kết quả đã in xong,
-nên số liệu không bị ảnh hưởng; cũng vì \texttt{-\/-hold} mà tổng thời
-gian của lần chạy này (WALL 213.90 s) không dùng để so sánh được.
-
 \section{Kết luận}\label{sec:l05-conclusion}
 
-Script chạy đủ các bước và cho đúng các số liệu tham khảo: 2,964,624
-dòng trong 4 partition, 228,254 chuyến dài, 2,867,786 dòng giữ lại sau
-làm sạch, Manhattan 2,571,810 chuyến, giờ cao điểm 18:00, 31 phân vùng
-ngày và 74,743 chuyến ngày 2024-01-15. Qua bài này chúng tôi thấy được
-trên log và UI những điều trước đó chỉ đọc trong sách: transformation
-chỉ dựng kế hoạch, action mới chạy job; stage bị cắt ở
-\texttt{Exchange}; tổng hợp hai pha đưa lượng dữ liệu shuffle từ
-2,867,786 xuống 24 dòng giống combiner của MapReduce; bảng nhỏ được
-broadcast tự động; DataFrame và SQL cho cùng kết quả vì dùng chung
-Catalyst.
-
-Về thực hành, với Spark 4 nên dùng
-\texttt{try\_divide}/\texttt{try\_cast} ngay từ đầu, đặt
-\texttt{spark.}\allowbreak{}\texttt{sql.}\allowbreak{}\texttt{shuffle.}\allowbreak{}\texttt{partitions}\allowbreak{}
-theo kích thước dữ liệu, chỉ \texttt{cache()} thứ được dùng lại nhiều
-lần và \texttt{repartition} theo cột phân vùng trước khi ghi. Nếu làm
-tiếp, chúng tôi muốn thử dữ liệu nhiều tháng với thêm cấp phân vùng
-\texttt{pickup\_month}, so sánh UDF Python với hàm dựng sẵn, và dùng
-History Server để xem lại ứng dụng đã kết thúc thay vì phải giữ UI bằng
-\texttt{-\/-hold}.
+Script chạy đủ các bước của đề và cho đúng các số liệu tham khảo:
+2,964,624 dòng trong 4 partition, 228,254 chuyến dài, 2,867,786 dòng giữ
+lại sau làm sạch, Manhattan 2,571,810 chuyến, giờ cao điểm 18:00, 31
+phân vùng ngày và 74,743 chuyến ngày 2024-01-15. Trên log và UI, chúng
+tôi quan sát được transformation chỉ dựng kế hoạch còn action mới chạy
+job, stage bị cắt ở \texttt{Exchange}, tổng hợp hai pha chỉ đưa 24 dòng
+qua shuffle, bảng nhỏ được broadcast tự động, và DataFrame với SQL cho
+cùng kết quả. Ghi có \texttt{repartition} cho đúng một tệp mỗi ngày, đổi
+lại một lần shuffle toàn bộ dữ liệu.
 
 \section*{Tài liệu tham khảo}\label{tuxe0i-liux1ec7u-tham-khux1ea3o}
 \addcontentsline{toc}{section}{Tài liệu tham khảo}
 
-{[}1{]} M. Zaharia \emph{et al.}, ``Resilient Distributed Datasets: A
-Fault-Tolerant Abstraction for In-Memory Cluster Computing,'' in
-\emph{Proc. 9th USENIX NSDI}, 2012.
-
-{[}2{]} M. Armbrust \emph{et al.}, ``Spark SQL: Relational Data
+{[}1{]} M. Armbrust \emph{et al.}, ``Spark SQL: Relational Data
 Processing in Spark,'' in \emph{Proc. ACM SIGMOD}, 2015.
 
-{[}3{]} B. Chambers and M. Zaharia, \emph{Spark: The Definitive Guide}.
-Sebastopol, CA: O'Reilly Media, 2018.
-
-{[}4{]} Apache Software Foundation, ``Spark SQL, DataFrames and Datasets
-Guide,'' Apache Spark Documentation.
-https://spark.apache.org/docs/latest/sql-programming-guide.html
-
-{[}5{]} Apache Software Foundation, ``Performance Tuning,'' Apache Spark
+{[}2{]} Apache Software Foundation, ``Performance Tuning,'' Apache Spark
 Documentation.
 https://spark.apache.org/docs/latest/sql-performance-tuning.html
 
-{[}6{]} Apache Software Foundation, ``ANSI Compliance,'' Apache Spark
+{[}3{]} Apache Software Foundation, ``ANSI Compliance,'' Apache Spark
 Documentation.
 https://spark.apache.org/docs/latest/sql-ref-ansi-compliance.html
 
-{[}7{]} J. Dean and S. Ghemawat, ``MapReduce: Simplified Data Processing
+{[}4{]} J. Dean and S. Ghemawat, ``MapReduce: Simplified Data Processing
 on Large Clusters,'' in \emph{Proc. 6th USENIX OSDI}, 2004.
 
-{[}8{]} NYC Taxi and Limousine Commission, ``TLC Trip Record Data.''
+{[}5{]} NYC Taxi and Limousine Commission, ``TLC Trip Record Data.''
 https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page
 
-\section*{Phụ lục A: Danh mục tệp nộp
-kèm}\label{phux1ee5-lux1ee5c-a-danh-mux1ee5c-tux1ec7p-nux1ed9p-kuxe8m}
-\addcontentsline{toc}{section}{Phụ lục A: Danh mục tệp nộp kèm}
-
-Các tệp nộp kèm được liệt kê ở Bảng~\ref{tbl:l05-files}.
-
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
-\caption{\label{tbl:l05-files}Danh mục tệp nộp kèm.}\tabularnewline
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Tệp
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Nội dung
-\end{minipage} \\
-\midrule\noalign{}
-\endfirsthead
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Tệp
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Nội dung
-\end{minipage} \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-\texttt{l05\_basics.py} & Script hoàn chỉnh, có thêm cờ
-\texttt{-\/-no-repartition}\allowbreak{} \\
-\texttt{01\_}\allowbreak{}\texttt{run\_}\allowbreak{}\texttt{no\_}\allowbreak{}\texttt{repartition.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Log lần chạy ghi không \texttt{repartition} (WALL 35.70 s) \\
-\texttt{02\_}\allowbreak{}\texttt{files\_}\allowbreak{}\texttt{no\_}\allowbreak{}\texttt{repartition.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Đếm tệp output khi không \texttt{repartition} (56 tệp, 74 MB) \\
-\texttt{03\_}\allowbreak{}\texttt{run\_}\allowbreak{}\texttt{with\_}\allowbreak{}\texttt{repartition.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Log lần chạy chính có \texttt{repartition} và \texttt{-\/-hold\ 300}
-để chụp UI \\
-\texttt{04\_}\allowbreak{}\texttt{files\_}\allowbreak{}\texttt{with\_}\allowbreak{}\texttt{repartition.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Đếm tệp output khi có \texttt{repartition} (31 tệp, 73 MB) \\
-\texttt{05\_}\allowbreak{}\texttt{ansi\_}\allowbreak{}\texttt{divide\_}\allowbreak{}\texttt{by\_}\allowbreak{}\texttt{zero.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Thử nghiệm ANSI mode: \texttt{try\_divide} và
-\texttt{{[}DIVIDE\_}\allowbreak{}\texttt{BY\_}\allowbreak{}\texttt{ZERO{]}}\allowbreak{} \\
-\texttt{ui\_}\allowbreak{}\texttt{sql\_}\allowbreak{}\texttt{queries.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Danh sách 21 truy vấn SQL kèm thời lượng (ms) \\
-\texttt{ui\_}\allowbreak{}\texttt{by\_}\allowbreak{}\texttt{borough\_}\allowbreak{}\texttt{jobs.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Các job 19--22 của truy vấn 10 cùng stage và số task \\
-\texttt{img/} & Ảnh chụp terminal (\texttt{01}--\texttt{08}) và Spark UI
-(\texttt{20}--\texttt{28}) \\
-\end{longtable}
-
-\section*{Phụ lục B: Trích đoạn mã
-nguồn}\label{phux1ee5-lux1ee5c-b-truxedch-ux111oux1ea1n-muxe3-nguux1ed3n}
-\addcontentsline{toc}{section}{Phụ lục B: Trích đoạn mã nguồn}
+\section*{Phụ lục: Trích đoạn mã
+nguồn}\label{phux1ee5-lux1ee5c-truxedch-ux111oux1ea1n-muxe3-nguux1ed3n}
+\addcontentsline{toc}{section}{Phụ lục: Trích đoạn mã nguồn}
 
 Đếm NULL của mọi cột trong một lần quét và tính tỷ lệ tip an toàn với
 ANSI mode (phần làm sạch trong \texttt{l05\_basics.py}):
@@ -1353,18 +1106,6 @@ ANSI mode (phần làm sạch trong \texttt{l05\_basics.py}):
 \end{Highlighting}
 \end{Shaded}
 
-Ba luật làm sạch bổ sung vào từ điển luật; mỗi luật là một biểu thức
-boolean để đếm vi phạm trong một lần quét:
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\CommentTok{"negative total"}\NormalTok{: F.col(}\StringTok{"total\_amount"}\NormalTok{) }\OperatorTok{\textless{}} \DecValTok{0}\NormalTok{,}
-\CommentTok{"distance \textless{}= 0 or \textgreater{} 100 miles"}\NormalTok{: (F.col(}\StringTok{"trip\_distance"}\NormalTok{) }\OperatorTok{\textless{}=} \DecValTok{0}\NormalTok{)}
-                                \OperatorTok{|}\NormalTok{ (F.col(}\StringTok{"trip\_distance"}\NormalTok{) }\OperatorTok{\textgreater{}} \DecValTok{100}\NormalTok{),}
-\CommentTok{"duration \textless{}= 0 or \textgreater{} 6 h"}\NormalTok{: (F.col(}\StringTok{"duration\_min"}\NormalTok{) }\OperatorTok{\textless{}=} \DecValTok{0}\NormalTok{) }\OperatorTok{|}\NormalTok{ (F.col(}\StringTok{"duration\_min"}\NormalTok{) }\OperatorTok{\textgreater{}} \DecValTok{360}\NormalTok{),}
-\end{Highlighting}
-\end{Shaded}
-
 Join hai lần với bảng khu vực, đổi tên cột trước mỗi lần để tránh
 \texttt{AMBIGUOUS\_}\allowbreak{}\texttt{REFERENCE}\allowbreak{}:
 
@@ -1375,25 +1116,6 @@ Join hai lần với bảng khu vực, đổi tên cột trước mỗi lần đ
 \NormalTok{do }\OperatorTok{=}\NormalTok{ zones.select(F.col(}\StringTok{"LocationID"}\NormalTok{).alias(}\StringTok{"DOLocationID"}\NormalTok{),}
 \NormalTok{                  F.col(}\StringTok{"Borough"}\NormalTok{).alias(}\StringTok{"do\_borough"}\NormalTok{), F.col(}\StringTok{"Zone"}\NormalTok{).alias(}\StringTok{"do\_zone"}\NormalTok{))}
 \NormalTok{enriched }\OperatorTok{=}\NormalTok{ clean.join(pu, }\StringTok{"PULocationID"}\NormalTok{, }\StringTok{"left"}\NormalTok{).join(do, }\StringTok{"DOLocationID"}\NormalTok{, }\StringTok{"left"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-Xếp hạng khu vực theo quận và chuỗi theo ngày với \texttt{lag}, tổng lũy
-kế:
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{w\_rank }\OperatorTok{=}\NormalTok{ Window.partitionBy(}\StringTok{"pu\_borough"}\NormalTok{).orderBy(F.desc(}\StringTok{"trips"}\NormalTok{))}
-\NormalTok{top3 }\OperatorTok{=}\NormalTok{ (zone\_counts.withColumn(}\StringTok{"rank"}\NormalTok{, F.dense\_rank().over(w\_rank))}
-\NormalTok{        .}\BuiltInTok{filter}\NormalTok{(}\StringTok{"rank \textless{}= 3"}\NormalTok{).orderBy(}\StringTok{"pu\_borough"}\NormalTok{, }\StringTok{"rank"}\NormalTok{))}
-
-\NormalTok{w\_day }\OperatorTok{=}\NormalTok{ Window.orderBy(}\StringTok{"pickup\_date"}\NormalTok{)}
-\NormalTok{daily }\OperatorTok{=}\NormalTok{ (daily.withColumn(}\StringTok{"prev\_day\_trips"}\NormalTok{, F.lag(}\StringTok{"trips"}\NormalTok{).over(w\_day))}
-\NormalTok{         .withColumn(}\StringTok{"dod\_change\_pct"}\NormalTok{,}
-\NormalTok{                     F.}\BuiltInTok{round}\NormalTok{((F.col(}\StringTok{"trips"}\NormalTok{) }\OperatorTok{/}\NormalTok{ F.col(}\StringTok{"prev\_day\_trips"}\NormalTok{) }\OperatorTok{{-}} \DecValTok{1}\NormalTok{) }\OperatorTok{*} \DecValTok{100}\NormalTok{, }\DecValTok{1}\NormalTok{))}
-\NormalTok{         .withColumn(}\StringTok{"running\_revenue"}\NormalTok{,}
-\NormalTok{                     F.}\BuiltInTok{sum}\NormalTok{(}\StringTok{"revenue"}\NormalTok{).over(w\_day.rowsBetween(Window.unboundedPreceding, }\DecValTok{0}\NormalTok{)))}
-\NormalTok{         .orderBy(}\StringTok{"pickup\_date"}\NormalTok{))}
 \end{Highlighting}
 \end{Shaded}
 

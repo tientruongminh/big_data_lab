@@ -201,192 +201,52 @@ Lớp:                  & 23KDL \\
 }
 \listoffigures
 \listoftables
-\section*{Tóm tắt}\label{tuxf3m-tux1eaft}
-\addcontentsline{toc}{section}{Tóm tắt}
+\section{Mục tiêu và môi trường}\label{sec:l03-intro}
 
-Bài thực hành dựng Apache Hive 4.2.1 trên HDFS, Metastore độc lập dùng
-PostgreSQL 18, Tez chạy ở chế độ cục bộ. Toàn bộ dữ liệu taxi vàng New
-York tháng 01/2024 (2,964,624 dòng, tệp CSV 274.2 MB) được đưa lên HDFS
-dưới dạng bảng ngoài, rồi chuyển sang hai bảng phân vùng ORC (nén ZLIB)
-và Parquet (nén Snappy) bằng phân vùng động. Chúng tôi đo kích thước lưu
-trữ và thời gian truy vấn, kiểm tra cắt tỉa phân vùng bằng
-\texttt{EXPLAIN}, và thử bucketing. ORC nhỏ hơn CSV 5.2 lần, Parquet nhỏ
-hơn 4.2 lần; truy vấn Q1 giảm từ 8.53 s trên CSV xuống 1.89 s (ORC) và
-1.62 s (Parquet). Lọc theo cột phân vùng chỉ đọc 1 trên 5 phân vùng, còn
-lọc theo cột thời gian gốc phải đọc cả 5. Bảng bucketing có đúng 4 tệp,
-và toàn bộ 145,240 chuyến từ JFK nằm trong một tệp. Phân vùng động cũng
-làm lộ ra 18 dòng có thời gian nằm ngoài tháng, một lỗi chất lượng dữ
-liệu lẽ ra phải chặn từ trước khi ghi.
+Bài thực hành tạo bảng ngoài Hive trên CSV ở HDFS, chuyển sang bảng phân
+vùng ORC và Parquet, so sánh kích thước và thời gian truy vấn, kiểm
+chứng cắt tỉa phân vùng bằng \texttt{EXPLAIN}, tạo bảng bucketing, và
+làm thêm hai phần mở rộng (thống kê cột, bảng ACID). Cả cụm chạy bằng
+Docker Compose trên một máy (Bảng~\ref{tbl:l03-env}).
 
-\textbf{Từ khóa:} Apache Hive, Metastore, ORC, Parquet, partition
-pruning, bucketing, ACID, Tez.
-
-\section{Giới thiệu}\label{sec:l03-intro}
-
-Hive là hệ thống đầu tiên đưa SQL lên Hadoop {[}1{]}. Ý tưởng chính của
-nó là tách siêu dữ liệu (lược đồ, vị trí, phân vùng) khỏi dữ liệu: siêu
-dữ liệu nằm trong một cơ sở dữ liệu quan hệ gọi là Metastore, còn dữ
-liệu là các tệp bình thường trên HDFS. Cách làm này về sau thành chuẩn
-chung. Ngày nay Spark SQL, Trino, Impala và cả bảng Iceberg vẫn dùng
-Metastore của Hive làm \emph{catalog} (danh mục bảng), nên hiểu Hive tổ
-chức tệp và phân vùng ra sao vẫn còn giá trị.
-
-Các mục tiêu của bài:
-
-\begin{enumerate}
-\def\labelenumi{\arabic{enumi}.}
-\tightlist
-\item
-  Mô tả kiến trúc Hive: HiveServer2, Metastore, Tez và HDFS.
-\item
-  Tạo bảng ngoài trên tệp có sẵn với \texttt{LazySimpleSerDe} và
-  \texttt{OpenCSVSerde}.
-\item
-  Tạo bảng phân vùng ORC và Parquet, nạp dữ liệu bằng phân vùng động.
-\item
-  Đo ảnh hưởng của định dạng tệp (CSV, ORC, Parquet) lên kích thước và
-  thời gian truy vấn.
-\item
-  Kiểm chứng cắt tỉa phân vùng bằng
-  \texttt{EXPLAIN\ DEPENDENCY}\allowbreak{} và
-  \texttt{EXPLAIN\ EXTENDED}\allowbreak{}.
-\item
-  Tạo bảng bucketing, lấy mẫu theo bucket; phần mở rộng thử bảng ACID và
-  thống kê.
-\end{enumerate}
-
-Lý thuyết ở Mục~\ref{sec:l03-theory}, cách làm ở
-Mục~\ref{sec:l03-method}, kết quả ở Mục~\ref{sec:l03-results}, các câu
-hỏi checkpoint ở Mục~\ref{sec:l03-discussion}.
-
-\section{Cơ sở lý thuyết}\label{sec:l03-theory}
-
-\subsection{Kiến trúc Hive}\label{kiux1ebfn-truxfac-hive}
-
-Máy khách (Beeline, JDBC) gửi câu lệnh tới HiveServer2 ở cổng 10000.
-HiveServer2 phân tích cú pháp, tối ưu kế hoạch bằng Calcite (CBO) rồi
-sinh một DAG Tez {[}6{]}. Lúc lập kế hoạch, nó hỏi Metastore (Thrift,
-cổng 9083) về lược đồ, định dạng và vị trí của từng bảng, từng phân
-vùng; Metastore giữ các thông tin này trong PostgreSQL ở các bảng
-\texttt{TBLS}, \texttt{SDS}, \texttt{PARTITIONS}. Các task Tez sau đó
-đọc và ghi tệp trên HDFS. Ở môi trường thật, task Tez chạy trong
-container YARN hoặc LLAP. Trong bài này Tez chạy cục bộ ngay trong
-HiveServer2, nhưng câu SQL, kế hoạch và tệp sinh ra không khác gì.
-
-\subsection{Bảng ngoài, bảng quản lý và
-schema-on-read}\label{bux1ea3ng-ngouxe0i-bux1ea3ng-quux1ea3n-luxfd-vuxe0-schema-on-read}
-
-Hive theo kiểu \emph{schema-on-read} (áp lược đồ lúc đọc): lược đồ chỉ
-dùng để diễn giải tệp khi truy vấn. Bảng ngoài
-(\texttt{EXTERNAL\ TABLE}) chỉ là siêu dữ liệu trỏ tới một thư mục, nên
-\texttt{DROP\ TABLE} không xóa tệp. Hive 4 bắt bảng quản lý phải là bảng
-ACID; vì vậy một câu
-\texttt{CREATE\ TABLE\ .}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{\ STORED\ AS\ ORC}\allowbreak{}
-bình thường bị Metastore chuyển thành bảng ngoài trong warehouse kèm
-\texttt{external.}\allowbreak{}\texttt{table.}\allowbreak{}\texttt{purge=}\allowbreak{}\texttt{TRUE}\allowbreak{},
-và khi đó \texttt{DROP\ TABLE} vẫn xóa tệp {[}2{]}.
-
-\subsection{Định dạng cột ORC và
-Parquet}\label{ux111ux1ecbnh-dux1ea1ng-cux1ed9t-orc-vuxe0-parquet}
-
-ORC {[}3{]} và Parquet {[}4{]} đặt các giá trị cùng cột liền nhau trong
-từng \emph{stripe} (ORC) hay \emph{row group} (Parquet). Nhờ vậy có thể
-dùng dictionary encoding, \emph{run-length encoding} (RLE), mã hóa
-delta, bit-packing, rồi nén thêm bằng ZLIB hoặc Snappy. Mỗi khối có
-thống kê min/max để bộ đọc bỏ qua khối không thỏa điều kiện
-(\emph{predicate pushdown}), và bộ đọc chỉ lấy những cột cần
-(\emph{column pruning}) {[}5{]}.
-
-\subsection{Phân vùng và cắt tỉa phân
-vùng}\label{phuxe2n-vuxf9ng-vuxe0-cux1eaft-tux1ec9a-phuxe2n-vuxf9ng}
-
-Partition chia dữ liệu thành các thư mục con dạng
-\texttt{cot=gia\_tri/}. Khi điều kiện lọc nằm trên cột phân vùng, trình
-lập kế hoạch chỉ liệt kê những thư mục khớp (\emph{partition pruning}).
-Giá trị phân vùng có thể tĩnh (ghi trong câu lệnh) hoặc động (lấy từ cột
-cuối của \texttt{SELECT}). Mặc định Hive ở chế độ \texttt{strict}, bắt
-phải có ít nhất một giá trị tĩnh {[}2{]}.
-
-\subsection{Bucketing}\label{bucketing}
-
-Bucketing chia dữ liệu theo \(\text{hash}(c) \bmod N\) vào đúng \(N\)
-tệp, \(N\) cố định trong DDL. Kỹ thuật này hợp với cột có nhiều giá trị
-phân biệt, dùng được cho \texttt{TABLESAMPLE}, bucket map join và
-sort-merge-bucket join {[}2{]}, {[}7{]}.
-
-\subsection{Bảng giao dịch ACID}\label{bux1ea3ng-giao-dux1ecbch-acid}
-
-Bảng ACID không sửa tệp tại chỗ. Mỗi giao dịch ghi một thư mục
-\texttt{delta\_*} (dòng mới) hoặc \texttt{delete\_delta\_*} (đánh dấu
-dòng bị xóa). Bộ đọc hợp nhất các delta lúc đọc, và \emph{compaction}
-gộp chúng lại về sau {[}5{]}.
-
-\section{Môi trường và phương pháp thực nghiệm}\label{sec:l03-method}
-
-\subsection{Môi trường}\label{muxf4i-trux1b0ux1eddng}
-
-Cả cụm chạy bằng Docker Compose trên một máy (Bảng~\ref{tbl:l03-env}).
-
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\begin{longtable}[]{@{}ll@{}}
 \caption{\label{tbl:l03-env}Môi trường thực nghiệm.}\tabularnewline
 \toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Thành phần
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Phiên bản / cấu hình
-\end{minipage} \\
+Thành phần & Phiên bản / cấu hình \\
 \midrule\noalign{}
 \endfirsthead
 \toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Thành phần
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Phiên bản / cấu hình
-\end{minipage} \\
+Thành phần & Phiên bản / cấu hình \\
 \midrule\noalign{}
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-Hive & 4.2.1 (image chính thức
-\texttt{apache/}\allowbreak{}\texttt{hive:}\allowbreak{}\texttt{4.}\allowbreak{}\texttt{2.}\allowbreak{}\texttt{1}\allowbreak{}),
+Hive & 4.2.1
+(\texttt{apache/}\allowbreak{}\texttt{hive:}\allowbreak{}\texttt{4.}\allowbreak{}\texttt{2.}\allowbreak{}\texttt{1}\allowbreak{}),
 HiveServer2 + Metastore độc lập \\
 Bộ máy thực thi & Tez, chế độ cục bộ bên trong HiveServer2 \\
 Cơ sở dữ liệu Metastore & PostgreSQL 18 (database \texttt{metastore}) \\
 HDFS & 3.4.3, 1 NameNode + 1 DataNode (hệ số nhân bản 1) \\
-Cổng dịch vụ & HiveServer2 10000 (JDBC), 10002 (Web UI); Metastore 9083;
-NameNode UI 9870 \\
 Máy khách & Beeline qua \texttt{run\_sql.sh} (in thời gian từng câu
 lệnh) \\
 \end{longtable}
 
+Đề bài gợi ý dùng mẫu 1 triệu dòng, nhưng chúng tôi dùng nguyên tháng
+01/2024 của dữ liệu taxi vàng New York (Bảng~\ref{tbl:l03-data}), nên
+các con số trong bài lớn hơn số tham khảo của đề.
+
+\section{Thực hiện và kết quả}\label{sec:l03-results}
+
+\subsection{Khởi động cụm và đưa CSV lên HDFS}\label{sec:l03-res-stack}
+
 Năm container đều \texttt{Up}, NameNode và PostgreSQL ở trạng thái
-\texttt{healthy} (Hình~\ref{fig:l03-stack}). Giao diện web của
-HiveServer2 liệt kê các truy vấn đã chạy xong, tất cả trên \texttt{tez}
-(Hình~\ref{fig:l03-hs2ui}).
-
-\begin{figure}
-\centering
-\includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/01_stack_and_upload.png}
-\caption{Khởi động cụm Hive (\texttt{docker\ compose\ ps}\allowbreak{})
-và tải tệp CSV cùng bảng tra cứu zone lên HDFS.}\label{fig:l03-stack}
-\end{figure}
-
-\begin{figure}
-\centering
-\includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/20_ui_hiveserver2_home.png}
-\caption{Giao diện web HiveServer2 (cổng 10002): danh sách truy vấn đã
-hoàn tất, tất cả chạy trên Tez.}\label{fig:l03-hs2ui}
-\end{figure}
-
-\subsection{Dữ liệu}\label{dux1eef-liux1ec7u}
-
-Tệp
+\texttt{healthy} (Hình~\ref{fig:l03-stack}). Tệp
 \texttt{yellow\_}\allowbreak{}\texttt{tripdata\_}\allowbreak{}\texttt{2024-01.}\allowbreak{}\texttt{parquet}\allowbreak{}
-được chuyển sang CSV không có dòng tiêu đề (Bảng~\ref{tbl:l03-data}). Đề
-bài gợi ý dùng mẫu 1 triệu dòng, nhưng chúng tôi dùng nguyên tháng, nên
-các con số trong bài lớn hơn số tham khảo.
+được chuyển sang CSV không có dòng tiêu đề rồi tải lên
+\texttt{/data/taxi\_csv}, cùng bảng tra cứu zone lên
+\texttt{/data/zones} (Bảng~\ref{tbl:l03-data}). Giao diện web
+HiveServer2 ở cổng 10002 liệt kê các truy vấn đã chạy xong, tất cả trên
+\texttt{tez} (Hình~\ref{fig:l03-hs2ui}).
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
@@ -421,73 +281,41 @@ Số dòng
 & 12.0 K & 265 zone + 1 dòng tiêu đề \\
 \end{longtable}
 
-\subsection{Quy trình}\label{quy-truxecnh}
+\begin{figure}
+\centering
+\includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/01_stack_and_upload.png}
+\caption{Khởi động cụm Hive (\texttt{docker\ compose\ ps}\allowbreak{})
+và tải tệp CSV cùng bảng tra cứu zone lên HDFS.}\label{fig:l03-stack}
+\end{figure}
 
-Mỗi bước chạy bằng \texttt{run\_sql.sh}, log gốc lưu trong các tệp
-\texttt{*.txt}:
-
-\begin{enumerate}
-\def\labelenumi{\arabic{enumi}.}
-\tightlist
-\item
-  Khởi động cụm, chuyển Parquet sang CSV, tải lên
-  \texttt{/data/taxi\_csv} và \texttt{/data/zones}.
-\item
-  \texttt{01\_}\allowbreak{}\texttt{external\_}\allowbreak{}\texttt{tables.}\allowbreak{}\texttt{sql}\allowbreak{}:
-  tạo bảng ngoài \texttt{trips\_csv}
-  (\texttt{ROW\ FORMAT\ DELIMITED}\allowbreak{}) và \texttt{zones}
-  (\texttt{OpenCSVSerde}), rồi truy vấn thẳng bảng \texttt{TBLS},
-  \texttt{SDS} của Metastore trong PostgreSQL.
-\item
-  \texttt{02\_}\allowbreak{}\texttt{partitioned\_}\allowbreak{}\texttt{tables.}\allowbreak{}\texttt{sql}\allowbreak{}:
-  bật
-  \texttt{hive.}\allowbreak{}\texttt{exec.}\allowbreak{}\texttt{dynamic.}\allowbreak{}\texttt{partition.}\allowbreak{}\texttt{mode=}\allowbreak{}\texttt{nonstrict}\allowbreak{},
-  tính \texttt{pickup\_month} bằng
-  \texttt{date\_}\allowbreak{}\texttt{format(.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{,}\allowbreak{}\texttt{\ \textquotesingle{}yyyy-MM\textquotesingle{})}\allowbreak{},
-  tạo và nạp \texttt{trips\_orc} (ZLIB) và \texttt{trips\_parquet}
-  (Snappy). Đo kích thước bằng \texttt{hdfs\ dfs\ -du}.
-\item
-  \texttt{03\_}\allowbreak{}\texttt{compare\_}\allowbreak{}\texttt{formats.}\allowbreak{}\texttt{sql}\allowbreak{},
-  chạy hai lần với
-  \texttt{hive.}\allowbreak{}\texttt{compute.}\allowbreak{}\texttt{query.}\allowbreak{}\texttt{using.}\allowbreak{}\texttt{stats=}\allowbreak{}\texttt{false}\allowbreak{},
-  \texttt{hive.}\allowbreak{}\texttt{query.}\allowbreak{}\texttt{results.}\allowbreak{}\texttt{cache.}\allowbreak{}\texttt{enabled=}\allowbreak{}\texttt{false}\allowbreak{}
-  và
-  \texttt{hive.}\allowbreak{}\texttt{fetch.}\allowbreak{}\texttt{task.}\allowbreak{}\texttt{conversion=}\allowbreak{}\texttt{none}\allowbreak{}
-  để Hive phải quét thật. Chúng tôi lấy số của lần thứ hai, khi JVM và
-  Tez đã khởi động xong.
-\item
-  \texttt{04\_}\allowbreak{}\texttt{partition\_}\allowbreak{}\texttt{pruning.}\allowbreak{}\texttt{sql}\allowbreak{}:
-  thêm một \texttt{EXPLAIN\ DEPENDENCY}\allowbreak{} lọc theo
-  \texttt{tpep\_}\allowbreak{}\texttt{pickup\_}\allowbreak{}\texttt{datetime}\allowbreak{}
-  để đối chiếu.
-\item
-  \texttt{05\_}\allowbreak{}\texttt{bucketing.}\allowbreak{}\texttt{sql}\allowbreak{}:
-  bảng
-  \texttt{CLUSTERED\ BY\ (pulocationid)\ SORTED\ BY\ (pulocationid)\ INTO\ 4\ BUCKETS}\allowbreak{}.
-\item
-  Phần mở rộng: \texttt{ANALYZE\ TABLE} cho thống kê cột và bảng ACID
-  \texttt{zone\_notes}.
-\end{enumerate}
-
-\section{Kết quả thực nghiệm}\label{sec:l03-results}
+\begin{figure}
+\centering
+\includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/20_ui_hiveserver2_home.png}
+\caption{Giao diện web HiveServer2 (cổng 10002): danh sách truy vấn đã
+hoàn tất, tất cả chạy trên Tez.}\label{fig:l03-hs2ui}
+\end{figure}
 
 \subsection{Bảng ngoài và nội dung
 Metastore}\label{sec:l03-res-external}
 
-Cả hai bảng ngoài đọc được ngay.
+\texttt{01\_}\allowbreak{}\texttt{external\_}\allowbreak{}\texttt{tables.}\allowbreak{}\texttt{sql}\allowbreak{}
+tạo \texttt{trips\_csv} với \texttt{ROW\ FORMAT\ DELIMITED}\allowbreak{}
+và \texttt{zones} với \texttt{OpenCSVSerde} cộng
+\texttt{skip.}\allowbreak{}\texttt{header.}\allowbreak{}\texttt{line.}\allowbreak{}\texttt{count=}\allowbreak{}\texttt{1}\allowbreak{}
+(mã ở Phụ lục). Cả hai đọc được ngay.
 \texttt{SELECT\ *\ FROM\ zones\ LIMIT\ 3}\allowbreak{} trả về
 \texttt{1\ \textbar{}\ EWR\ \textbar{}\ Newark\ Airport\ \textbar{}\ EWR}\allowbreak{},
 \texttt{2\ \textbar{}\ Queens\ \textbar{}\ Jamaica\ Bay\ \textbar{}\ Boro\ Zone}\allowbreak{}
 và
 \texttt{3\ \textbar{}\ Bronx\ \textbar{}\ Allerton/}\allowbreak{}\texttt{Pelham\ Gardens\ \textbar{}\ Boro\ Zone}\allowbreak{},
-tức \texttt{OpenCSVSerde} đã bỏ dòng tiêu đề và dấu ngoặc kép.
-\texttt{count(*)} trên \texttt{trips\_csv} ra
+tức dòng tiêu đề và dấu ngoặc kép đã được bỏ. \texttt{count(*)} trên
+\texttt{trips\_csv} ra
 \texttt{csv\_}\allowbreak{}\texttt{rows\ =}\allowbreak{}\texttt{\ 2,}\allowbreak{}\texttt{964,}\allowbreak{}\texttt{624}\allowbreak{}
 sau 4.465 s, khớp số dòng của tệp.
 
-Truy vấn \texttt{TBLS\ JOIN\ SDS} trong PostgreSQL
+Truy vấn thẳng \texttt{TBLS\ JOIN\ SDS} trong PostgreSQL
 (Bảng~\ref{tbl:l03-metastore}, Hình~\ref{fig:l03-external}) chỉ thấy tên
-bảng, loại bảng, vị trí và lớp định dạng đầu vào. Không có dòng dữ liệu
+bảng, loại bảng, vị trí và lớp định dạng đầu vào; không có dòng dữ liệu
 nào trong Metastore.
 
 \begin{longtable}[]{@{}
@@ -542,6 +370,13 @@ zones & EXTERNAL\_TABLE &
 
 \subsection{Bảng phân vùng ORC và Parquet}\label{sec:l03-res-partition}
 
+\texttt{02\_}\allowbreak{}\texttt{partitioned\_}\allowbreak{}\texttt{tables.}\allowbreak{}\texttt{sql}\allowbreak{}
+bật
+\texttt{hive.}\allowbreak{}\texttt{exec.}\allowbreak{}\texttt{dynamic.}\allowbreak{}\texttt{partition.}\allowbreak{}\texttt{mode=}\allowbreak{}\texttt{nonstrict}\allowbreak{},
+tính \texttt{pickup\_month} bằng
+\texttt{date\_}\allowbreak{}\texttt{format(.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{,}\allowbreak{}\texttt{\ \textquotesingle{}yyyy-MM\textquotesingle{})}\allowbreak{}
+ở cột cuối của \texttt{SELECT}, rồi nạp \texttt{trips\_orc} (ZLIB) và
+\texttt{trips\_parquet} (Snappy).
 \texttt{INSERT\ OVERWRITE}\allowbreak{} ghi 2,964,624 dòng vào
 \texttt{trips\_orc} trong 42.761 s và vào \texttt{trips\_parquet} trong
 45.134 s. Chúng tôi chờ 4 phân vùng như kết quả mẫu của đề, nhưng
@@ -582,7 +417,7 @@ Trên giao diện NameNode, thư mục \texttt{taxi.db} có bốn bảng
 \texttt{trips\_orc} có năm thư mục con
 \texttt{pickup\_}\allowbreak{}\texttt{month=}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}
 (Hình~\ref{fig:l03-orcparts}). Bốn phân vùng nhỏ chỉ có một tệp khoảng 2
-KB, một phiên bản thu nhỏ của vấn đề tệp nhỏ ở Mục~\ref{sec:l03-q6}.
+KB.
 
 \begin{figure}
 \centering
@@ -605,14 +440,16 @@ diện NameNode.}\label{fig:l03-orcparts}
 cùng
 \texttt{TRANSLATED\_}\allowbreak{}\texttt{TO\_}\allowbreak{}\texttt{EXTERNAL=}\allowbreak{}\texttt{TRUE}\allowbreak{}
 và
-\texttt{external.}\allowbreak{}\texttt{table.}\allowbreak{}\texttt{purge=}\allowbreak{}\texttt{TRUE}\allowbreak{},
-đúng cách Hive 4 xử lý bảng ``managed'' không phải ACID. Thống kê trong
-Metastore: \texttt{numFiles=5}, \texttt{numPartitions=5},
+\texttt{external.}\allowbreak{}\texttt{table.}\allowbreak{}\texttt{purge=}\allowbreak{}\texttt{TRUE}\allowbreak{}.
+Lý do là Hive 4 chỉ chấp nhận bảng quản lý dạng ACID, nên một câu
+\texttt{CREATE\ TABLE\ .}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{\ STORED\ AS\ ORC}\allowbreak{}
+thường bị Metastore chuyển thành bảng ngoài nằm trong warehouse {[}1{]}.
+Thống kê trong Metastore: \texttt{numFiles=5}, \texttt{numPartitions=5},
 \texttt{numRows=2964624},
 \texttt{rawDataSize=}\allowbreak{}\texttt{825609554}\allowbreak{},
 \texttt{totalSize=}\allowbreak{}\texttt{52629674}\allowbreak{}. Hình này
 cũng liệt kê 18 dòng có \texttt{pickup\_month} khác \texttt{2024-01},
-bàn ở Mục~\ref{sec:l03-q8}.
+phân tích ở Mục~\ref{sec:l03-q8}.
 
 \begin{figure}
 \centering
@@ -620,8 +457,6 @@ bàn ở Mục~\ref{sec:l03-q8}.
 \caption{\texttt{DESCRIBE\ FORMATTED\ trips\_}\allowbreak{}\texttt{orc}\allowbreak{}
 và 18 dòng nằm ngoài tháng 01/2024.}\label{fig:l03-describe}
 \end{figure}
-
-\subsection{Kích thước lưu trữ theo định dạng}\label{sec:l03-res-size}
 
 Kích thước đo bằng \texttt{hdfs\ dfs\ -du\ -s} nằm ở
 Bảng~\ref{tbl:l03-sizes} và Hình~\ref{fig:l03-sizes}. Tỉ lệ nén tính
@@ -653,9 +488,9 @@ ORC bucketed (chỉ 5 cột) & 25,271,072 & 24.1 & 10.9× \\
 \caption{Kích thước CSV, ORC và Parquet trên HDFS.}\label{fig:l03-sizes}
 \end{figure}
 
-ORC + ZLIB nhỏ hơn Parquet + Snappy khoảng 19 \%. Điều này hợp lý vì
-ZLIB thiên về tỉ lệ nén, Snappy thiên về tốc độ. Bảng bucketed chỉ giữ 5
-trên 19 cột nên con số 10.9× không đem so với ba dòng trên được.
+ORC + ZLIB nhỏ hơn Parquet + Snappy khoảng 19 \%, hợp lý vì ZLIB thiên
+về tỉ lệ nén còn Snappy thiên về tốc độ. Bảng bucketed chỉ giữ 5 trên 19
+cột nên con số 10.9× không đem so với ba dòng trên được.
 
 \subsection{So sánh thời gian truy vấn CSV, ORC và
 Parquet}\label{sec:l03-res-compare}
@@ -666,9 +501,16 @@ Trên CSV, điều kiện là
 \texttt{tpep\_}\allowbreak{}\texttt{pickup\_}\allowbreak{}\texttt{datetime}\allowbreak{};
 trên ORC và Parquet là
 \texttt{pickup\_}\allowbreak{}\texttt{month\ =}\allowbreak{}\texttt{\ \textquotesingle{}2024-01\textquotesingle{}}\allowbreak{}.
-Q2 nối \texttt{trips\_orc} với \texttt{zones}. Thời gian cả hai lần chạy
-ở Bảng~\ref{tbl:l03-timing}, ảnh lần chạy thứ hai ở
-Hình~\ref{fig:l03-compare}.
+Q2 nối \texttt{trips\_orc} với \texttt{zones}.
+\texttt{03\_}\allowbreak{}\texttt{compare\_}\allowbreak{}\texttt{formats.}\allowbreak{}\texttt{sql}\allowbreak{}
+được chạy hai lần với
+\texttt{hive.}\allowbreak{}\texttt{compute.}\allowbreak{}\texttt{query.}\allowbreak{}\texttt{using.}\allowbreak{}\texttt{stats=}\allowbreak{}\texttt{false}\allowbreak{},
+\texttt{hive.}\allowbreak{}\texttt{query.}\allowbreak{}\texttt{results.}\allowbreak{}\texttt{cache.}\allowbreak{}\texttt{enabled=}\allowbreak{}\texttt{false}\allowbreak{}
+và
+\texttt{hive.}\allowbreak{}\texttt{fetch.}\allowbreak{}\texttt{task.}\allowbreak{}\texttt{conversion=}\allowbreak{}\texttt{none}\allowbreak{}
+để Hive phải quét thật; số dùng để so sánh là lần thứ hai, khi JVM và
+Tez đã khởi động xong (Bảng~\ref{tbl:l03-timing},
+Hình~\ref{fig:l03-compare}).
 
 \begin{longtable}[]{@{}lllll@{}}
 \caption{\label{tbl:l03-timing}Thời gian truy vấn theo định dạng (số
@@ -697,10 +539,12 @@ Q2 nối \texttt{zones} theo borough & 2 & & 2.655 s & \\
 \end{figure}
 
 Ở lần thứ hai, ORC nhanh hơn CSV khoảng \(8.528/1.885 \approx 4.5\) lần,
-Parquet khoảng \(8.528/1.618 \approx 5.3\) lần. Ba nguồn cho cùng một
-kết quả (Bảng~\ref{tbl:l03-q1}), nên việc đổi định dạng không làm sai dữ
-liệu. Zone \texttt{132} (sân bay JFK) đứng đầu, và giá cước trung bình ở
-đây cao gấp mấy lần các zone trong nội đô.
+Parquet khoảng \(8.528/1.618 \approx 5.3\) lần. Mỗi truy vấn chỉ đo hai
+lần nên chưa nói được gì về phương sai, và với dữ liệu khoảng 274 MB thì
+chi phí khởi động Tez chiếm phần đáng kể trong các thời gian 1.6--2.7 s.
+Ba nguồn cho cùng kết quả Q1 (Bảng~\ref{tbl:l03-q1}), nên đổi định dạng
+không làm sai dữ liệu. Zone \texttt{132} (sân bay JFK) đứng đầu, giá
+cước trung bình cao gấp mấy lần các zone nội đô.
 
 \begin{longtable}[]{@{}lll@{}}
 \caption{\label{tbl:l03-q1}Kết quả Q1 (giống nhau trên CSV, ORC và
@@ -723,7 +567,7 @@ pulocationid & Số chuyến & Giá cước trung bình \\
 \end{longtable}
 
 Theo Q2 (Bảng~\ref{tbl:l03-q2}), Manhattan chiếm 89.3 \% số chuyến. Cộng
-số chuyến các borough lại ra đúng 2,964,606, bằng số dòng của phân vùng
+số chuyến các borough ra đúng 2,964,606, bằng số dòng của phân vùng
 \texttt{2024-01}.
 
 \begin{longtable}[]{@{}lll@{}}
@@ -751,8 +595,10 @@ Staten Island & 72 & 3,966 \\
 
 \subsection{Cắt tỉa phân vùng}\label{sec:l03-res-pruning}
 
-Ba câu \texttt{EXPLAIN} được đặt cạnh nhau ở Bảng~\ref{tbl:l03-pruning}
-và Hình~\ref{fig:l03-pruning}.
+Ngoài hai câu \texttt{EXPLAIN} của đề, chúng tôi thêm một
+\texttt{EXPLAIN\ DEPENDENCY}\allowbreak{} lọc theo
+\texttt{tpep\_}\allowbreak{}\texttt{pickup\_}\allowbreak{}\texttt{datetime}\allowbreak{}
+để đối chiếu (Bảng~\ref{tbl:l03-pruning}, Hình~\ref{fig:l03-pruning}).
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
@@ -816,13 +662,14 @@ Trong kế hoạch (c), \texttt{TableScan} ước lượng
 \texttt{Execution\ mode:}\allowbreak{}\texttt{\ vectorized}\allowbreak{}.
 Ở (b), Hive không biết
 \texttt{tpep\_}\allowbreak{}\texttt{pickup\_}\allowbreak{}\texttt{datetime}\allowbreak{}
-và \texttt{pickup\_month} có liên quan với nhau, vì trong lược đồ đó là
-hai cột độc lập. Nó phải liệt kê mọi phân vùng rồi lọc từng dòng.
+và \texttt{pickup\_month} có liên quan, vì trong lược đồ đó là hai cột
+độc lập, nên phải liệt kê mọi phân vùng rồi lọc từng dòng.
 
 \subsection{Bucketing}\label{sec:l03-res-bucket}
 
-Bảng \texttt{trips\_bucketed} (5 cột) nạp 2,964,606 dòng từ phân vùng
-\texttt{2024-01} trong 13.985 s.
+Bảng \texttt{trips\_bucketed} (5 cột,
+\texttt{CLUSTERED\ BY\ (pulocationid)\ SORTED\ BY\ (pulocationid)\ INTO\ 4\ BUCKETS}\allowbreak{})
+nạp 2,964,606 dòng từ phân vùng \texttt{2024-01} trong 13.985 s.
 \texttt{DESCRIBE\ FORMATTED}\allowbreak{} ghi \texttt{Num\ Buckets:\ 4},
 \texttt{Bucket\ Columns:}\allowbreak{}\texttt{\ {[}pulocationid{]}}\allowbreak{}
 và
@@ -852,12 +699,12 @@ Tổng & 25,271,072 B & \texttt{numFiles=4}, \texttt{numRows=2964606} \\
 \end{longtable}
 
 \texttt{TABLESAMPLE(BUCKET\ 1\ OUT\ OF\ 4\ ON\ pulocationid)}\allowbreak{}
-trả về 619,893 dòng sau 1.606 s, tức khoảng 20.9 \% chứ không phải 25
-\%. Lý do là hàm băm chia theo giá trị khóa chứ không theo số dòng;
-bucket nào nhận phải các zone đông khách sẽ to hơn. Truy vấn
+trả về 619,893 dòng sau 1.606 s, khoảng 20.9 \% chứ không phải 25 \%, vì
+hàm băm chia theo giá trị khóa chứ không theo số dòng; bucket nào nhận
+các zone đông khách sẽ to hơn. Truy vấn
 \texttt{INPUT\_}\allowbreak{}\texttt{\_}\allowbreak{}\texttt{FILE\_}\allowbreak{}\texttt{\_}\allowbreak{}\texttt{NAME}\allowbreak{}
-cho zone 132 chỉ trả về một tệp \texttt{000002\_0}
-(Hình~\ref{fig:l03-bucketing}), nên tệp này cũng là tệp lớn nhất.
+cho zone 132 chỉ trả về tệp \texttt{000002\_0}
+(Hình~\ref{fig:l03-bucketing}), cũng là tệp lớn nhất.
 
 \begin{figure}
 \centering
@@ -877,23 +724,24 @@ NameNode.}\label{fig:l03-bucketui}
 ACID}\label{sec:l03-res-stretch}
 
 Trước khi có thống kê, \texttt{SELECT\ count(*)} trên
-\texttt{trips\_orc} mất 2.132 s. Câu
+\texttt{trips\_orc} mất 2.132 s; câu
 \texttt{ANALYZE\ TABLE\ trips\_}\allowbreak{}\texttt{orc\ PARTITION\ (pickup\_}\allowbreak{}\texttt{month)\ COMPUTE\ STATISTICS\ FOR\ COLUMNS}\allowbreak{}
-mất 18.354 s. Chúng tôi chờ \texttt{count(*)} sau đó sẽ trả lời ngay từ
-Metastore khi bật
+mất 18.354 s. Chúng tôi chờ \texttt{count(*)} sau đó được trả lời ngay
+từ Metastore khi bật
 \texttt{hive.}\allowbreak{}\texttt{compute.}\allowbreak{}\texttt{query.}\allowbreak{}\texttt{using.}\allowbreak{}\texttt{stats=}\allowbreak{}\texttt{true}\allowbreak{},
-nhưng không phải vậy: kết quả vẫn là 2,964,624 và vẫn chạy DAG Tez, mất
-1.569 s lần đầu và 2.592 s khi đo lại. \texttt{EXPLAIN} lần đo lại vẫn
-có
+nhưng không: kết quả vẫn là 2,964,624 qua DAG Tez, mất 1.569 s lần đầu
+và 2.592 s khi đo lại, dù \texttt{EXPLAIN} có
 \texttt{TableScan\ {[}TS\_}\allowbreak{}\texttt{0{]}\ (rows=}\allowbreak{}\texttt{2964624\ width=}\allowbreak{}\texttt{290)}\allowbreak{}
 với
 \texttt{Tbl:}\allowbreak{}\texttt{COMPLETE,}\allowbreak{}\texttt{\ Col:}\allowbreak{}\texttt{COMPLETE}\allowbreak{}.
-Thống kê đã đủ mà không được dùng; nguyên nhân ở
-Mục~\ref{sec:l03-q-stats}.
+Giải thích hợp lý nhất là \texttt{trips\_orc} thực chất là bảng EXTERNAL
+được chuyển đổi, và Hive không tin thống kê của bảng ngoài vì tệp có thể
+bị sửa từ bên ngoài. Chúng tôi chưa kiểm chứng trên bảng ACID, nên đây
+vẫn là giả thuyết.
 
 Bảng
 \texttt{zone\_}\allowbreak{}\texttt{notes\ (locationid\ INT,}\allowbreak{}\texttt{\ note\ STRING)\ STORED\ AS\ ORC\ TBLPROPERTIES\ (\textquotesingle{}transactional\textquotesingle{}=}\allowbreak{}\texttt{\textquotesingle{}true\textquotesingle{})}\allowbreak{}
-mới là \texttt{MANAGED\_TABLE} thật. Các thao tác và thư mục sinh ra
+mới là \texttt{MANAGED\_TABLE} thật. Các giao dịch và thư mục sinh ra
 trên HDFS nằm ở Bảng~\ref{tbl:l03-acid}, Hình~\ref{fig:l03-stretch} và
 Hình~\ref{fig:l03-acidui}. Cuối cùng còn 2 dòng:
 \texttt{132\ \textbar{}\ JFK\ Airport}\allowbreak{} và
@@ -962,37 +810,32 @@ bảng \texttt{zone\_notes} trên giao diện
 NameNode.}\label{fig:l03-acidui}
 \end{figure}
 
-Không tệp nào bị sửa tại chỗ. \texttt{UPDATE} thực chất là một lần xóa
-(\texttt{delete\_delta}) cộng một lần ghi mới (\texttt{delta}); mỗi thư
-mục có một tệp \texttt{bucket\_00000\_0} khoảng 700--800 B và tệp
+Không tệp nào bị sửa tại chỗ: \texttt{UPDATE} là một
+\texttt{delete\_delta} cộng một \texttt{delta} mới, mỗi thư mục có một
+tệp \texttt{bucket\_00000\_0} khoảng 700--800 B và tệp
 \texttt{\_}\allowbreak{}\texttt{orc\_}\allowbreak{}\texttt{acid\_}\allowbreak{}\texttt{version}\allowbreak{}.
-Bộ đọc hợp nhất các delta khi truy vấn, sau này compaction sẽ gộp chúng
-thành thư mục \texttt{base\_*}.
+Bộ đọc hợp nhất các delta khi truy vấn, compaction sẽ gộp chúng thành
+\texttt{base\_*} về sau {[}4{]}.
 
-\section{Thảo luận}\label{sec:l03-discussion}
+\section{Trả lời câu hỏi checkpoint}\label{sec:l03-discussion}
 
 \subsection{\texorpdfstring{Metastore giữ gì, HDFS giữ gì, và
 \texttt{DROP\ TABLE} xóa những
 gì?}{Metastore giữ gì, HDFS giữ gì, và DROP TABLE xóa những gì?}}\label{sec:l03-q1}
 
-Metastore (các bảng \texttt{TBLS}, \texttt{SDS},
-\texttt{PARTITIONS}\ldots{} trong PostgreSQL) giữ toàn bộ siêu dữ liệu:
-database, tên bảng, tên và kiểu cột, SerDe, lớp định dạng vào/ra, loại
-bảng, \texttt{LOCATION} của bảng và từng phân vùng, giá trị phân vùng,
-thống kê (\texttt{numRows}, \texttt{totalSize}\ldots) và trạng thái giao
-dịch ACID. HDFS chỉ chứa tệp dữ liệu. Ở Bảng~\ref{tbl:l03-metastore},
-hai bảng ngoài chỉ là hai dòng siêu dữ liệu trỏ tới
-\texttt{/data/taxi\_csv} và \texttt{/data/zones}.
-
-\texttt{DROP\ TABLE\ trips\_}\allowbreak{}\texttt{csv}\allowbreak{}
-(bảng ngoài) chỉ xóa siêu dữ liệu, tệp trong \texttt{/data/taxi\_csv}
-vẫn còn.
-\texttt{DROP\ TABLE\ trips\_}\allowbreak{}\texttt{orc}\allowbreak{} thì
-khác: bảng này là bảng ngoài được chuyển đổi với
-\texttt{external.}\allowbreak{}\texttt{table.}\allowbreak{}\texttt{purge=}\allowbreak{}\texttt{TRUE}\allowbreak{}
-(Hình~\ref{fig:l03-describe}), nên lệnh xóa cả siêu dữ liệu lẫn thư mục
+Metastore (\texttt{TBLS}, \texttt{SDS}, \texttt{PARTITIONS}\ldots{}
+trong PostgreSQL) giữ siêu dữ liệu: tên và kiểu cột, SerDe, lớp định
+dạng, loại bảng, \texttt{LOCATION} của bảng và từng phân vùng, thống kê
+(\texttt{numRows}, \texttt{totalSize}\ldots) và trạng thái giao dịch
+ACID. HDFS chỉ chứa tệp dữ liệu (Bảng~\ref{tbl:l03-metastore}).
+\texttt{DROP\ TABLE\ trips\_}\allowbreak{}\texttt{csv}\allowbreak{} chỉ
+xóa siêu dữ liệu, tệp trong \texttt{/data/taxi\_csv} vẫn còn.
+\texttt{DROP\ TABLE\ trips\_}\allowbreak{}\texttt{orc}\allowbreak{} xóa
+cả siêu dữ liệu lẫn thư mục
 \texttt{/}\allowbreak{}\texttt{user/}\allowbreak{}\texttt{hive/}\allowbreak{}\texttt{warehouse/}\allowbreak{}\texttt{taxi.}\allowbreak{}\texttt{db/}\allowbreak{}\texttt{trips\_}\allowbreak{}\texttt{orc}\allowbreak{},
-giống một bảng quản lý.
+vì bảng có
+\texttt{external.}\allowbreak{}\texttt{table.}\allowbreak{}\texttt{purge=}\allowbreak{}\texttt{TRUE}\allowbreak{}
+(Hình~\ref{fig:l03-describe}).
 
 \subsection{\texorpdfstring{Vì sao \texttt{zones} cần
 \texttt{OpenCSVSerde} còn \texttt{trips\_csv} chỉ cần
@@ -1014,36 +857,31 @@ phân tích chậm hơn và không xử lý được giá trị NULL đặc bi�
 \subsection{Vì sao ORC và Parquet nhỏ hơn CSV 4--5
 lần?}\label{sec:l03-q3}
 
-Số đo được ở Bảng~\ref{tbl:l03-sizes} có hai nguyên nhân. Thứ nhất là
-lưu theo cột: giá trị cùng cột, cùng kiểu nằm cạnh nhau nên dictionary,
-RLE, delta và bit-packing nén rất tốt, nhất là với các cột như
-\texttt{vendorid}, \texttt{payment\_type}, \texttt{ratecodeid} chỉ có
-vài giá trị. Thứ hai là kiểu nhị phân cộng nén khối: một timestamp chiếm
-8 byte thay vì chuỗi 19 ký tự, số không còn là chuỗi chữ số kèm dấu phân
-cách, rồi cả khối lại được nén bằng ZLIB hoặc Snappy. ORC và Parquet
-chênh nhau chủ yếu do codec. Một chi tiết thú vị: \texttt{rawDataSize}
-so với \texttt{totalSize} của \texttt{trips\_orc}
-(Mục~\ref{sec:l03-res-partition}) cho thấy dữ liệu khi giải nén trong bộ
-nhớ lớn gấp khoảng 15.7 lần trên đĩa.
+Thứ nhất là lưu theo cột {[}2{]}, {[}3{]}: giá trị cùng cột, cùng kiểu
+nằm cạnh nhau trong từng stripe/row group nên dictionary,
+\emph{run-length encoding}, delta và bit-packing nén rất tốt, nhất là
+với cột ít giá trị như \texttt{vendorid}, \texttt{payment\_type}. Thứ
+hai là kiểu nhị phân cộng nén khối: một timestamp chiếm 8 byte thay vì
+chuỗi 19 ký tự, rồi cả khối được nén thêm bằng ZLIB hoặc Snappy (codec
+là lý do chính khiến ORC và Parquet chênh nhau ở
+Bảng~\ref{tbl:l03-sizes}). Tỉ lệ \texttt{rawDataSize}/\texttt{totalSize}
+của \texttt{trips\_orc} (Mục~\ref{sec:l03-res-partition}) cho thấy dữ
+liệu giải nén lớn gấp khoảng 15.7 lần trên đĩa.
 
 \subsection{Vì sao Q1 chạy nhanh hơn trên ORC và
 Parquet?}\label{sec:l03-q4}
 
-Thời gian Q1 giảm 4.5 đến 5.3 lần (Bảng~\ref{tbl:l03-timing}), và chúng
-tôi thấy có bốn cơ chế cùng góp phần. Trước hết là column pruning: Q1
-chỉ cần 2--3 trong 19 cột, ORC và Parquet chỉ đọc đúng các \emph{column
-chunk} đó, còn CSV phải đọc và phân tích cả 274 MB từng dòng một. Thứ
-hai là partition pruning: điều kiện lọc trên \texttt{pickup\_month}
-khiến Hive chỉ mở thư mục
+Bốn cơ chế cùng góp phần vào mức giảm ở Bảng~\ref{tbl:l03-timing}.
+Column pruning: Q1 chỉ cần 2--3 trong 19 cột, ORC và Parquet chỉ đọc
+đúng các column chunk đó, còn CSV phải phân tích cả 274 MB từng dòng.
+Partition pruning: điều kiện trên \texttt{pickup\_month} khiến Hive chỉ
+mở thư mục
 \texttt{pickup\_}\allowbreak{}\texttt{month=}\allowbreak{}\texttt{2024-01}\allowbreak{}
-(Bảng~\ref{tbl:l03-pruning}), trong khi bảng CSV không phân vùng nên
-phải quét hết rồi lọc theo timestamp. Thứ ba, min/max và chỉ mục dòng
-của từng stripe/row group cho phép bỏ qua những khối không thể thỏa điều
-kiện. Cuối cùng, bộ đọc ORC/Parquet xử lý theo lô 1,024 dòng
-(\texttt{Execution\ mode:}\allowbreak{}\texttt{\ vectorized}\allowbreak{}
-ở Mục~\ref{sec:l03-res-pruning}) và không mất công đổi văn bản thành số.
-Thí nghiệm của chúng tôi không tách riêng được phần đóng góp của từng cơ
-chế.
+(Bảng~\ref{tbl:l03-pruning}), còn bảng CSV không phân vùng nên phải quét
+hết. Predicate pushdown: min/max của từng stripe/row group cho phép bỏ
+qua khối không thỏa điều kiện. Cuối cùng là thực thi vectorized theo lô
+1,024 dòng (Mục~\ref{sec:l03-res-pruning}), không phải đổi văn bản thành
+số. Thí nghiệm không tách riêng được đóng góp của từng cơ chế.
 
 \subsection{\texorpdfstring{Phân vùng tĩnh khác phân vùng động ra sao,
 và vì sao mặc định là
@@ -1052,10 +890,10 @@ và vì sao mặc định là
 Phân vùng tĩnh ghi giá trị ngay trong câu lệnh, ví dụ
 \texttt{PARTITION\ (pickup\_}\allowbreak{}\texttt{month=}\allowbreak{}\texttt{\textquotesingle{}2024-01\textquotesingle{})}\allowbreak{},
 và mọi dòng đều vào phân vùng đó. Phân vùng động lấy giá trị từ cột cuối
-của \texttt{SELECT}. Chế độ \texttt{strict} là mặc định để một câu truy
-vấn viết sai không lỡ tay tạo ra hàng nghìn phân vùng, hàng nghìn tệp và
-đối tượng trong Metastore. Bài này gặp đúng chuyện đó ở quy mô nhỏ: chỉ
-18 dòng bất thường đã đẻ ra bốn phân vùng ``lạ''
+của \texttt{SELECT}. Chế độ \texttt{strict} bắt phải có ít nhất một giá
+trị tĩnh, để một câu truy vấn viết sai không lỡ tay tạo ra hàng nghìn
+phân vùng, hàng nghìn tệp và đối tượng trong Metastore. Bài này gặp đúng
+chuyện đó ở quy mô nhỏ: 18 dòng bất thường đã sinh ra bốn phân vùng lạ
 (Bảng~\ref{tbl:l03-partitions}).
 
 \subsection{\texorpdfstring{Phân vùng theo \texttt{pulocationid} cộng
@@ -1066,17 +904,16 @@ sao?}{Phân vùng theo pulocationid cộng ngày, hoặc theo tpep\_pickup\_date
 
 Theo \texttt{pulocationid} cộng ngày sẽ có khoảng
 \(265 \times 31 \approx 8{,}000\) phân vùng mỗi tháng, mỗi phân vùng một
-tệp từ vài KB đến vài trăm KB. Đó là vấn đề tệp nhỏ (\emph{small files
-problem}) {[}7{]}, {[}8{]}. NameNode phải giữ hàng chục nghìn đối tượng
-trong heap. Metastore phải lưu hàng nghìn dòng
-\texttt{PARTITIONS}/\texttt{SDS}, và việc lập kế hoạch chậm đi vì phải
-liệt kê và tải siêu dữ liệu của từng phân vùng. Mỗi tệp nhỏ lại thành
-một split/task riêng, nên chi phí khởi tạo lấn át thời gian xử lý thật.
-Bốn phân vùng lẻ của \texttt{trips\_orc}, mỗi cái một tệp 1,637--2,234
-B, là dấu hiệu sớm của chuyện này. Phân vùng theo timestamp gốc còn tệ
-hơn: gần như mỗi giây một phân vùng, tức hàng triệu thư mục chứa tệp vài
-trăm byte. Theo chúng tôi, nên phân vùng theo cột ít giá trị mà truy vấn
-hay lọc, sao cho mỗi phân vùng có từ vài trăm MB đến khoảng 1 GB.
+tệp từ vài KB đến vài trăm KB, tức vấn đề tệp nhỏ (\emph{small files
+problem}) {[}5{]}. NameNode phải giữ hàng chục nghìn đối tượng trong
+heap, Metastore phải lưu hàng nghìn dòng
+\texttt{PARTITIONS}/\texttt{SDS} nên lập kế hoạch chậm đi, và mỗi tệp
+nhỏ thành một task riêng nên chi phí khởi tạo lấn át xử lý thật. Bốn
+phân vùng lẻ khoảng 2 KB của \texttt{trips\_orc}
+(Bảng~\ref{tbl:l03-partitions}) là dấu hiệu sớm. Phân vùng theo
+timestamp gốc còn tệ hơn: gần như mỗi giây một phân vùng, hàng triệu thư
+mục chứa tệp vài trăm byte. Nên chọn cột ít giá trị mà truy vấn hay lọc,
+sao cho mỗi phân vùng cỡ vài trăm MB đến khoảng 1 GB.
 
 \subsection{Khi nào dùng partitioning, khi nào dùng bucketing, và vì sao
 số tệp bucket cố định?}\label{sec:l03-q7}
@@ -1084,15 +921,14 @@ số tệp bucket cố định?}\label{sec:l03-q7}
 Partitioning tạo thư mục theo giá trị cột, hợp với cột ít giá trị mà
 truy vấn hay lọc (ngày, tháng, quốc gia), để bỏ qua nguyên thư mục khi
 đọc. Bucketing chia theo \(\text{hash}(c) \bmod N\) vào \(N\) tệp, hợp
-với cột nhiều giá trị như mã định danh hay \texttt{pulocationid}. Nó cho
-phép lấy mẫu bằng \texttt{TABLESAMPLE}, bucket map join,
-sort-merge-bucket join, và tránh shuffle khi hai bảng được bucket giống
-nhau trên khóa join. Số tệp cố định vì \(N\) đã chốt trong DDL
+với cột nhiều giá trị như mã định danh hay \texttt{pulocationid}; nó cho
+phép lấy mẫu bằng \texttt{TABLESAMPLE}, và bucket map join hay
+sort-merge-bucket join không cần shuffle khi hai bảng cùng bucket trên
+khóa join. Số tệp cố định vì \(N\) đã chốt trong DDL
 (\texttt{INTO\ 4\ BUCKETS}): mỗi dòng luôn rơi vào bucket
-\(\text{hash} \bmod 4\), dữ liệu nhiều hay ít cũng vậy. Kết quả ở
-Bảng~\ref{tbl:l03-buckets} khớp với điều này. Hai kỹ thuật dùng chung
-được, ví dụ phân vùng theo tháng rồi trong mỗi phân vùng chia bucket
-theo zone.
+\(\text{hash} \bmod 4\) dù dữ liệu nhiều hay ít, đúng như
+Bảng~\ref{tbl:l03-buckets}. Hai kỹ thuật dùng chung được, ví dụ phân
+vùng theo tháng rồi chia bucket theo zone.
 
 \subsection{Những dòng nào rơi vào phân vùng lạ, và pipeline thật nên xử
 lý ra sao?}\label{sec:l03-q8}
@@ -1144,100 +980,52 @@ thừa \\
 sau nửa đêm \\
 \end{longtable}
 
-Hai nhóm này cần xử lý khác nhau. Dòng năm 2002 và 2009 là lỗi đồng hồ,
-còn dòng 2023-12 và 2024-02 là chuyến thật ở biên tháng. Trong một
-pipeline thật, chúng tôi sẽ so thời gian sự kiện với tháng của tệp
-nguồn, đẩy dòng ngoài khoảng hợp lệ vào một bảng quarantine kèm lý do và
-cảnh báo khi số dòng này tăng. Dòng biên tháng hợp lệ thì ghi vào đúng
-phân vùng của nó, hoặc giữ theo tháng của tệp nguồn, tùy quy ước của
-nhóm. Điều quan trọng là không để phân vùng động lặng lẽ tạo phân vùng
-rác. Iceberg giải quyết một phần chuyện này bằng phân vùng ẩn và cho
-phép đổi cách phân vùng về sau.
-
-\subsection{\texorpdfstring{Vì sao \texttt{count(*)} không nhanh hơn sau
-khi đã có thống
-kê?}{Vì sao count(*) không nhanh hơn sau khi đã có thống kê?}}\label{sec:l03-q-stats}
-
-Kết quả này làm chúng tôi bất ngờ lúc chạy. Thống kê đã
-\texttt{COMPLETE} nhưng \texttt{count(*)} vẫn quét bằng Tez, và thời
-gian xấp xỉ lần quét trước khi có thống kê
-(Mục~\ref{sec:l03-res-stretch}). Lời giải thích hợp lý nhất là
-\texttt{trips\_orc} thực chất là bảng EXTERNAL (bảng được chuyển đổi),
-và Hive không tin thống kê của bảng ngoài để trả lời thay cho việc quét,
-vì tệp có thể bị sửa từ bên ngoài Hive. Với bảng quản lý ACID, câu trả
-lời sẽ lấy thẳng từ Metastore và kế hoạch chỉ còn \texttt{Fetch}. Chúng
-tôi chưa kiểm chứng điều này trên \texttt{zone\_notes}, nên đây vẫn là
-giả thuyết.
-
-\subsection{Hạn chế của thực nghiệm}\label{sec:l03-limits}
-
-Mọi thứ chạy trên một máy, Tez ở chế độ cục bộ, HDFS chỉ một DataNode
-với hệ số nhân bản 1, nên kết quả không phản ánh tính song song hay chi
-phí mạng của cụm thật. Mỗi truy vấn chỉ đo hai lần, chưa đủ để nói về
-phương sai; riêng lần \texttt{count(*)} đo lại sau thống kê đã chậm hơn
-lần trước gần 1 s. Dữ liệu chỉ một tháng (khoảng 274 MB), nên chi phí
-khởi động JVM/Tez chiếm phần đáng kể trong các thời gian 1.6--2.7 s.
+Dòng năm 2002 và 2009 là lỗi đồng hồ, còn dòng 2023-12 và 2024-02 là
+chuyến thật ở biên tháng. Trong pipeline thật, chúng tôi sẽ so thời gian
+sự kiện với tháng của tệp nguồn, đẩy dòng ngoài khoảng hợp lệ vào một
+bảng quarantine kèm lý do và cảnh báo khi số dòng này tăng; dòng biên
+tháng hợp lệ thì ghi vào đúng phân vùng của nó hoặc giữ theo tháng của
+tệp nguồn, tùy quy ước. Không nên để phân vùng động lặng lẽ tạo phân
+vùng rác.
 
 \section{Kết luận}\label{sec:l03-conclusion}
 
-Metastore chỉ là một cơ sở dữ liệu quan hệ chứa lược đồ và vị trí, dữ
-liệu thật nằm trên HDFS. Chuyển CSV sang định dạng cột giảm kích thước
-4--5 lần (Bảng~\ref{tbl:l03-sizes}) và giảm thời gian Q1 tương ứng
-(Bảng~\ref{tbl:l03-timing}), nhờ cắt tỉa cột, cắt tỉa phân vùng,
-predicate pushdown và thực thi vector hóa. Hive chỉ cắt tỉa phân vùng
-khi điều kiện lọc nằm đúng trên cột phân vùng; lọc trên cột thời gian
-gốc thì vẫn đọc cả 5 phân vùng. Bucketing cho số tệp cố định và gom các
-dòng cùng khóa vào một tệp. Bảng ACID ghi thay đổi thành thư mục delta
-chứ không sửa tệp.
-
-Từ bài này, chúng tôi rút ra vài điều cho thực tế. Nên lưu dữ liệu phân
-tích ở ORC hoặc Parquet, phân vùng theo ngày hoặc tháng và viết truy vấn
-lọc thẳng trên cột phân vùng. Tránh phân vùng theo cột nhiều giá trị, và
-kiểm tra thời gian sự kiện trước khi ghi bằng phân vùng động. Nếu có
-thêm thời gian, chúng tôi muốn nạp tháng thứ hai bằng phân vùng tĩnh, so
-sánh khi bật và tắt vector hóa, thử schema-on-read bằng cách đổi
-\texttt{LOCATION}, và chuyển sang Iceberg để so với phân vùng kiểu thư
-mục.
+Bài đã hoàn thành đủ các task của đề cùng hai phần mở rộng (thống kê,
+ACID). Định dạng cột giảm kích thước 4--5 lần và thời gian Q1 tương ứng
+so với CSV (Bảng~\ref{tbl:l03-sizes}, Bảng~\ref{tbl:l03-timing}); Hive
+chỉ cắt tỉa phân vùng khi điều kiện lọc nằm đúng trên cột phân vùng
+(Bảng~\ref{tbl:l03-pruning}). Hai điểm lệch so với kỳ vọng là phân vùng
+thứ năm \texttt{2024-02} và việc \texttt{count(*)} không dùng thống kê.
+Mọi thứ chạy trên một máy với Tez cục bộ và một DataNode, nên các con số
+không phản ánh tính song song hay chi phí mạng của cụm thật.
 
 \section*{Tài liệu tham khảo}\label{tuxe0i-liux1ec7u-tham-khux1ea3o}
 \addcontentsline{toc}{section}{Tài liệu tham khảo}
 
-{[}1{]} A. Thusoo, J. S. Sarma, N. Jain, Z. Shao, P. Chakka, S. Anthony,
-H. Liu, P. Wyckoff, R. Murthy, ``Hive: A Warehousing Solution Over a
-Map-Reduce Framework,'' \emph{Proc. VLDB Endowment}, vol.~2, no. 2,
-pp.~1626--1629, 2009.
-
-{[}2{]} Apache Software Foundation, ``Apache Hive Language Manual:
+{[}1{]} Apache Software Foundation, ``Apache Hive Language Manual:
 DDL,'' Apache Hive Wiki.
 https://cwiki.apache.org/confluence/display/Hive/LanguageManual+DDL
 
-{[}3{]} Apache Software Foundation, ``ORC Specification v1,'' Apache
+{[}2{]} Apache Software Foundation, ``ORC Specification v1,'' Apache
 ORC. https://orc.apache.org/specification/
 
-{[}4{]} Apache Software Foundation, ``Apache Parquet Documentation,''
+{[}3{]} Apache Software Foundation, ``Apache Parquet Documentation,''
 Apache Parquet. https://parquet.apache.org/docs/
 
-{[}5{]} Y. Huai, A. Chauhan, A. Gates, G. Hagleitner, E. N. Hanson, O.
+{[}4{]} Y. Huai, A. Chauhan, A. Gates, G. Hagleitner, E. N. Hanson, O.
 O'Malley, J. Pandey, Y. Yuan, R. Lee, X. Zhang, ``Major Technical
 Advancements in Apache Hive,'' in \emph{Proc. ACM SIGMOD}, 2014,
 pp.~1235--1246.
 
-{[}6{]} B. Saha, H. Shah, S. Seth, G. Vijayaraghavan, A. Murthy, C.
-Curino, ``Apache Tez: A Unifying Framework for Modeling and Building
-Data Processing Applications,'' in \emph{Proc. ACM SIGMOD}, 2015,
-pp.~1357--1369.
-
-{[}7{]} T. White, \emph{Hadoop: The Definitive Guide}, 4th
+{[}5{]} T. White, \emph{Hadoop: The Definitive Guide}, 4th
 ed.~Sebastopol, CA: O'Reilly Media, 2015.
 
-{[}8{]} M. Kleppmann, \emph{Designing Data-Intensive Applications}.
-Sebastopol, CA: O'Reilly Media, 2017.
+\section*{Phụ lục: Trích đoạn mã
+nguồn}\label{phux1ee5-lux1ee5c-truxedch-ux111oux1ea1n-muxe3-nguux1ed3n}
+\addcontentsline{toc}{section}{Phụ lục: Trích đoạn mã nguồn}
 
-\section*{Phụ lục A: Danh mục tệp nộp
-kèm}\label{phux1ee5-lux1ee5c-a-danh-mux1ee5c-tux1ec7p-nux1ed9p-kuxe8m}
-\addcontentsline{toc}{section}{Phụ lục A: Danh mục tệp nộp kèm}
-
-Danh sách tệp nộp kèm ở Bảng~\ref{tbl:l03-files}.
+Các tệp nộp kèm trong \texttt{submission/L03/} được tóm ở
+Bảng~\ref{tbl:l03-files}.
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
@@ -1263,50 +1051,18 @@ Nội dung
 \bottomrule\noalign{}
 \endlastfoot
 \texttt{01\_}\allowbreak{}\texttt{external\_}\allowbreak{}\texttt{tables.}\allowbreak{}\texttt{sql}\allowbreak{}
-& Bảng ngoài \texttt{trips\_csv}, \texttt{zones} \\
-\texttt{02\_}\allowbreak{}\texttt{partitioned\_}\allowbreak{}\texttt{tables.}\allowbreak{}\texttt{sql}\allowbreak{}
-& Bảng phân vùng \texttt{trips\_orc}, \texttt{trips\_parquet} \\
-\texttt{03\_}\allowbreak{}\texttt{compare\_}\allowbreak{}\texttt{formats.}\allowbreak{}\texttt{sql}\allowbreak{}
-& Q1 trên CSV/ORC/Parquet và Q2 nối \texttt{zones} \\
-\texttt{04\_}\allowbreak{}\texttt{partition\_}\allowbreak{}\texttt{pruning.}\allowbreak{}\texttt{sql}\allowbreak{}
-&
-\texttt{EXPLAIN\ DEPENDENCY}\allowbreak{}/\texttt{EXPLAIN\ EXTENDED}\allowbreak{} \\
+\ldots{}
 \texttt{05\_}\allowbreak{}\texttt{bucketing.}\allowbreak{}\texttt{sql}\allowbreak{}
-& Bảng \texttt{trips\_bucketed} 4 bucket \\
+& Các tệp SQL đã hoàn thành \\
 \texttt{01\_}\allowbreak{}\texttt{stack\_}\allowbreak{}\texttt{and\_}\allowbreak{}\texttt{upload.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Trạng thái container, chuyển đổi và tải CSV lên HDFS \\
-\texttt{02\_}\allowbreak{}\texttt{external\_}\allowbreak{}\texttt{tables.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Log chạy
-\texttt{01\_}\allowbreak{}\texttt{external\_}\allowbreak{}\texttt{tables.}\allowbreak{}\texttt{sql}\allowbreak{} \\
-\texttt{03\_}\allowbreak{}\texttt{metastore\_}\allowbreak{}\texttt{tbls.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Truy vấn \texttt{TBLS\ JOIN\ SDS} trong PostgreSQL \\
-\texttt{04\_}\allowbreak{}\texttt{partitioned\_}\allowbreak{}\texttt{tables.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Log nạp ORC/Parquet và \texttt{SHOW\ PARTITIONS} \\
-\texttt{05\_}\allowbreak{}\texttt{sizes\_}\allowbreak{}\texttt{hdfs.}\allowbreak{}\texttt{txt}\allowbreak{}
-& \texttt{hdfs\ dfs\ -du} và \texttt{hdfs\ dfs\ -ls\ -R} của
-\texttt{trips\_orc} \\
-\texttt{06\_}\allowbreak{}\texttt{describe\_}\allowbreak{}\texttt{and\_}\allowbreak{}\texttt{bad\_}\allowbreak{}\texttt{rows.}\allowbreak{}\texttt{txt}\allowbreak{}
-&
-\texttt{DESCRIBE\ FORMATTED\ trips\_}\allowbreak{}\texttt{orc}\allowbreak{}
-và 18 dòng ngoài tháng \\
-\texttt{07\_}\allowbreak{}\texttt{compare\_}\allowbreak{}\texttt{formats\_}\allowbreak{}\texttt{run1.}\allowbreak{}\texttt{txt}\allowbreak{},
-\texttt{08\_}\allowbreak{}\texttt{compare\_}\allowbreak{}\texttt{formats\_}\allowbreak{}\texttt{run2.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Hai lần chạy so sánh định dạng \\
-\texttt{09\_}\allowbreak{}\texttt{partition\_}\allowbreak{}\texttt{pruning.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Log \texttt{EXPLAIN} cắt tỉa phân vùng \\
+\ldots{}
 \texttt{10\_}\allowbreak{}\texttt{bucketing.}\allowbreak{}\texttt{txt}\allowbreak{}
-& Log bucketing và danh sách tệp bucket \\
+& Log từng bước, theo thứ tự thực hiện \\
 \texttt{11\_}\allowbreak{}\texttt{stretch\_}\allowbreak{}\texttt{stats\_}\allowbreak{}\texttt{acid.}\allowbreak{}\texttt{txt}\allowbreak{},
 \texttt{12\_}\allowbreak{}\texttt{stretch\_}\allowbreak{}\texttt{stats\_}\allowbreak{}\texttt{answer.}\allowbreak{}\texttt{txt}\allowbreak{}
 & Phần mở rộng thống kê và ACID \\
-\texttt{clean.sh} & Lọc log, chỉ giữ bảng kết quả, số dòng, thời gian và
-lỗi \\
 \texttt{img/} & Ảnh chụp terminal và giao diện web \\
 \end{longtable}
-
-\section*{Phụ lục B: Trích đoạn mã
-nguồn}\label{phux1ee5-lux1ee5c-b-truxedch-ux111oux1ea1n-muxe3-nguux1ed3n}
-\addcontentsline{toc}{section}{Phụ lục B: Trích đoạn mã nguồn}
 
 Trong
 \texttt{01\_}\allowbreak{}\texttt{external\_}\allowbreak{}\texttt{tables.}\allowbreak{}\texttt{sql}\allowbreak{},
@@ -1326,7 +1082,7 @@ bảng \texttt{zones} dùng \texttt{OpenCSVSerde} và bỏ dòng tiêu đề:
 
 Trong
 \texttt{02\_}\allowbreak{}\texttt{partitioned\_}\allowbreak{}\texttt{tables.}\allowbreak{}\texttt{sql}\allowbreak{},
-chúng tôi bật phân vùng động, tính \texttt{pickup\_month} ở cột cuối của
+bật phân vùng động, tính \texttt{pickup\_month} ở cột cuối của
 \texttt{SELECT} và khai báo bảng Parquet nén Snappy (câu nạp
 \texttt{trips\_parquet} giống hệt câu nạp \texttt{trips\_orc}):
 
@@ -1343,19 +1099,6 @@ chúng tôi bật phân vùng động, tính \texttt{pickup\_month} ở cột cu
 \NormalTok{PARTITIONED }\KeywordTok{BY}\NormalTok{ (pickup\_month STRING)}
 \NormalTok{STORED }\KeywordTok{AS}\NormalTok{ PARQUET}
 \NormalTok{TBLPROPERTIES (}\StringTok{\textquotesingle{}parquet.compression\textquotesingle{}} \OperatorTok{=} \StringTok{\textquotesingle{}SNAPPY\textquotesingle{}}\NormalTok{);}
-\end{Highlighting}
-\end{Shaded}
-
-Trong
-\texttt{04\_}\allowbreak{}\texttt{partition\_}\allowbreak{}\texttt{pruning.}\allowbreak{}\texttt{sql}\allowbreak{},
-câu \texttt{EXPLAIN} lọc theo cột thời gian gốc để so với cách lọc theo
-cột phân vùng:
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\KeywordTok{EXPLAIN}\NormalTok{ DEPENDENCY}
-\KeywordTok{SELECT} \FunctionTok{count}\NormalTok{(}\OperatorTok{*}\NormalTok{) }\KeywordTok{FROM}\NormalTok{ trips\_orc}
-\KeywordTok{WHERE}\NormalTok{ tpep\_pickup\_datetime }\OperatorTok{\textgreater{}=} \StringTok{\textquotesingle{}2024{-}01{-}01\textquotesingle{}} \KeywordTok{AND}\NormalTok{ tpep\_pickup\_datetime }\OperatorTok{\textless{}} \StringTok{\textquotesingle{}2024{-}02{-}01\textquotesingle{}}\NormalTok{;}
 \end{Highlighting}
 \end{Shaded}
 
