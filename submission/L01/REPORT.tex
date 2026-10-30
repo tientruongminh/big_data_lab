@@ -3,12 +3,13 @@
 \PassOptionsToPackage{hyphens}{url}
 \PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
 \documentclass[
-  11pt,
+  12pt,
+  a4paper,
 ]{article}
 \usepackage{xcolor}
-\usepackage[margin=2cm]{geometry}
+\usepackage[top=2.5cm,bottom=2.5cm,left=3cm,right=2cm]{geometry}
 \usepackage{amsmath,amssymb}
-\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\setcounter{secnumdepth}{5}
 \usepackage{iftex}
 \ifPDFTeX
   \usepackage[T1]{fontenc}
@@ -22,8 +23,7 @@
 \usepackage{lmodern}
 \ifPDFTeX\else
   % xetex/luatex font selection
-    \setmainfont[]{DejaVu Serif}
-    \setsansfont[]{DejaVu Sans}
+    \setmainfont[]{Times New Roman}
     \setmonofont[Scale=0.85]{Liberation Mono}
 \fi
 % Use upquote if available, for straight quotes in verbatim environments
@@ -113,7 +113,7 @@
 \babelprovide[main,import]{vietnamese}
 \ifPDFTeX
 \else
-\babelfont{rm}[]{DejaVu Serif}
+\babelfont{rm}[]{Times New Roman}
 \fi
 % get rid of language-specific shorthands (see #6817):
 \let\LanguageShortHands\languageshorthands
@@ -126,19 +126,41 @@
 \fvset{breaklines,breakanywhere}
 \usepackage{float}
 \floatplacement{figure}{H}
-\renewcommand{\figurename}{Hình}
-\renewcommand{\tablename}{Bảng}
-\renewcommand{\contentsname}{Mục lục}
+\usepackage[font=small,labelfont=bf,labelsep=period]{caption}
+\usepackage{setspace}
+\setstretch{1.2}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\nouppercase{\leftmark}}
+\fancyhead[R]{\small Báo cáo thực hành Data Engineering}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\AtBeginDocument{%
+  \renewcommand{\figurename}{Hình}%
+  \renewcommand{\tablename}{Bảng}%
+  \renewcommand{\contentsname}{Mục lục}%
+  \renewcommand{\listfigurename}{Danh mục hình}%
+  \renewcommand{\listtablename}{Danh mục bảng}%
+  \providecommand{\chaptername}{}\renewcommand{\chaptername}{Chương}%
+}
+% Symbols missing from Times New Roman: typeset them in math mode instead.
+\begingroup
+\catcode`⌈=\active \catcode`⌉=\active \catcode`≫=\active \catcode`≪=\active
+\protected\gdef⌈{\ensuremath{\lceil}}\protected\gdef⌉{\ensuremath{\rceil}}
+\protected\gdef≫{\ensuremath{\gg}}\protected\gdef≪{\ensuremath{\ll}}
+\endgroup
+\AtBeginDocument{\catcode`⌈=\active \catcode`⌉=\active \catcode`≫=\active \catcode`≪=\active}
 \usepackage{bookmark}
 \IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
 \urlstyle{same}
 \hypersetup{
   pdflang={vi},
   colorlinks=true,
-  linkcolor={Maroon},
+  linkcolor={black},
   filecolor={Maroon},
   citecolor={Blue},
-  urlcolor={Blue},
+  urlcolor={blue},
   pdfcreator={LaTeX via pandoc}}
 
 \author{}
@@ -146,18 +168,238 @@
 
 \begin{document}
 
-\section{L01 --- HDFS: blocks, replicas và sự cố
-DataNode}\label{l01-hdfs-blocks-replicas-vuxe0-sux1ef1-cux1ed1-datanode}
+\begin{titlepage}
+\centering
+{\large\MakeUppercase{TRƯỜNG ĐẠI HỌC \ldots\ldots{}}\par}
+{\large\bfseries\MakeUppercase{KHOA \ldots\ldots{}}\par}
+\vspace{0.4cm}\rule{0.55\textwidth}{0.6pt}\par
+\vspace{3cm}
+{\Large\bfseries BÁO CÁO THỰC HÀNH\par}
+\vspace{0.3cm}
+{\large Môn học: Kỹ thuật dữ liệu (Data Engineering)\par}
+\vspace{1.5cm}
+{\large\bfseries Bài thực hành L01\par}
+\vspace{0.4cm}
+{\LARGE\bfseries HDFS: tổ chức block, nhân bản và khả năng chịu lỗi
+DataNode\par}
+\vfill
+\begin{tabular}{@{}ll@{}}
+Giảng viên hướng dẫn: & \ldots\ldots{} \\[2pt]
+Sinh viên thực hiện:  & Trương Minh Tiến \\[2pt]
+Mã số sinh viên:      & \ldots\ldots{} \\[2pt]
+Lớp:                  & \ldots\ldots{} \\
+\end{tabular}
+\vfill
+{\large \ldots\ldots{}, Tháng 10 năm 2026\par}
+\end{titlepage}
 
-Môi trường: WSL2 (x86\_64, 12 CPU, Docker 31.9 GB), Hadoop 3.4.3 --- 1
-NameNode, 3 DataNode, RM, NM, JobHistory. Log gốc của mọi bước nằm trong
-các file \texttt{0*.txt} ở thư mục này; ảnh ở \texttt{img/}.
+{
+\hypersetup{linkcolor=black}
+\setcounter{tocdepth}{3}
+\tableofcontents
+}
+\listoffigures
+\listoftables
+\section*{Tóm tắt}\label{tuxf3m-tux1eaft}
+\addcontentsline{toc}{section}{Tóm tắt}
 
-Ánh xạ IP → hostname (từ \texttt{hdfs\ dfsadmin\ -report}):
+Bài thực hành khảo sát ba cơ chế của \emph{Hadoop Distributed File
+System} (HDFS): chia tệp thành block, nhân bản block lên nhiều DataNode
+và phản ứng của hệ thống khi một DataNode ngừng hoạt động. Cluster
+Hadoop 3.4.3 gồm 1 NameNode và 3 DataNode chạy bằng Docker Compose; dữ
+liệu là tệp NYC Yellow Taxi tháng 01/2024 (49,961,641 byte). Cùng một
+tệp được lưu thành 1 block với block mặc định 128 MB và thành 3 block
+với block 16 MB, block cuối không bị đệm. Hạ hệ số nhân bản từ 3 xuống 2
+làm dung lượng thô giảm từ 142.9 M xuống 95.3 M. Khi dừng datanode3,
+NameNode tuyên bố node chết sau \textbf{90 s}, đúng như công thức tính
+từ cấu hình. Tệp hệ số 2 được tái nhân bản sang datanode2, còn hai tệp
+hệ số 3 vẫn under-replicated nhưng \texttt{Status:\ HEALTHY} và md5
+trùng khớp. Ngoài ra, fsimage không lưu vị trí block, và đây là lý do
+NameNode cần safe mode khi khởi động.
+
+\textbf{Từ khóa:} HDFS, block, replication, DataNode, heartbeat,
+under-replication, safe mode, fsimage.
+
+\section{Giới thiệu}\label{sec:l01-intro}
+
+HDFS được thiết kế để lưu tệp rất lớn trên nhiều máy thông thường, trong
+đó hỏng phần cứng được coi là chuyện thường ngày {[}1{]}, {[}2{]}. Hệ
+thống tách siêu dữ liệu (NameNode quản lý) khỏi dữ liệu (DataNode lưu
+dưới dạng block) và nhân bản mỗi block lên nhiều node. Các bài sau dùng
+MapReduce chạy trên HDFS, nên cần nắm các cơ chế này trước.
+
+Mục tiêu của L01:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Khởi động cluster HDFS nhiều node bằng Docker Compose, đọc trạng thái
+  qua CLI và giao diện web NameNode.
+\item
+  Dùng bộ lệnh \texttt{hdfs\ dfs} (mkdir, put, ls, du, cat, get, mv, rm,
+  stat).
+\item
+  Dùng \texttt{hdfs\ fsck\ -files\ -blocks\ -locations}\allowbreak{} để
+  chỉ ra cách một tệp được chia thành block và replica.
+\item
+  Thay đổi hệ số nhân bản bằng \texttt{setrep} và kích thước block lúc
+  ghi bằng
+  \texttt{-D\ dfs.}\allowbreak{}\texttt{blocksize}\allowbreak{}.
+\item
+  Dừng một DataNode, quan sát NameNode phát hiện sự cố, báo block
+  under-replicated và tự tái nhân bản.
+\item
+  Dùng safe mode và kiểm tra nội dung fsimage.
+\end{enumerate}
+
+Mục~\ref{sec:l01-theory} tóm lược lý thuyết, Mục~\ref{sec:l01-method} mô
+tả môi trường và quy trình, Mục~\ref{sec:l01-results} trình bày kết quả,
+Mục~\ref{sec:l01-discussion} trả lời tám câu hỏi checkpoint và
+Mục~\ref{sec:l01-conclusion} kết luận.
+
+\section{Cơ sở lý thuyết}\label{sec:l01-theory}
+
+\subsection{Kiến trúc NameNode và
+DataNode}\label{kiux1ebfn-truxfac-namenode-vuxe0-datanode}
+
+HDFS theo kiến trúc chủ tớ kế thừa từ Google File System {[}1{]},
+{[}2{]}. NameNode giữ toàn bộ \emph{namespace} (cây thư mục, tên tệp,
+quyền, danh sách block ID của từng tệp) trong bộ nhớ và ghi bền vững vào
+\emph{fsimage} (ảnh chụp namespace) cùng \emph{edit log} (nhật ký thay
+đổi). DataNode lưu dữ liệu thật dưới dạng tệp Linux thông thường. Khi
+ghi, client hỏi NameNode danh sách DataNode đích rồi đẩy dữ liệu theo
+pipeline từ DataNode thứ nhất sang thứ hai, thứ ba. Dữ liệu tệp không
+bao giờ đi qua NameNode {[}3{]}.
+
+\subsection{Block và replica}\label{block-vuxe0-replica}
+
+Mỗi tệp được cắt thành các block có kích thước tối đa
+\texttt{dfs.blocksize} (mặc định 128 MB). Khác với block của hệ thống
+tệp cục bộ, đây chỉ là giới hạn trên: block cuối chỉ lớn bằng phần dữ
+liệu còn lại {[}3{]}, {[}5{]}. Mỗi block có \texttt{dfs.replication}
+replica, mặc định 3. Trên đĩa DataNode, một replica gồm tệp
+\texttt{blk\_\textless{}id\textgreater{}} chứa dữ liệu và tệp
+\texttt{blk\_}\allowbreak{}\texttt{\textless{}id\textgreater{}\_}\allowbreak{}\texttt{\textless{}genstamp\textgreater{}.}\allowbreak{}\texttt{meta}\allowbreak{}
+chứa checksum. Hệ số nhân bản và kích thước block do client quyết định
+cho từng tệp; \texttt{hdfs-site.xml} chỉ cho giá trị mặc định {[}4{]}.
+
+\subsection{Heartbeat, node stale và node
+dead}\label{heartbeat-node-stale-vuxe0-node-dead}
+
+DataNode gửi \emph{heartbeat} tới NameNode mỗi
+\texttt{dfs.}\allowbreak{}\texttt{heartbeat.}\allowbreak{}\texttt{interval}\allowbreak{}
+(3 s) và định kỳ gửi \emph{block report} (danh sách block đang giữ).
+Node im lặng quá
+\texttt{dfs.}\allowbreak{}\texttt{namenode.}\allowbreak{}\texttt{stale.}\allowbreak{}\texttt{datanode.}\allowbreak{}\texttt{interval}\allowbreak{}
+bị coi là \emph{stale}, client sẽ tránh node này. Node bị coi là
+\emph{dead} sau
+
+\[T_{dead} = 2 \times \text{recheck-interval} + 10 \times \text{heartbeat-interval}.\]
+
+Với recheck-interval mặc định 5 phút,
+\(T_{dead} = 2 \times 300 + 10 \times 3 = 630\) s, tức 10.5 phút
+{[}7{]}.
+
+\subsection{Under-replication và tái nhân
+bản}\label{under-replication-vuxe0-tuxe1i-nhuxe2n-bux1ea3n}
+
+Khi một node chết, NameNode gỡ các replica của node đó khỏi \emph{block
+map} (bảng ánh xạ block sang DataNode). Block có số replica sống nhỏ hơn
+hệ số đích trở thành under-replicated và được xếp hàng sao chép từ một
+replica còn sống sang DataNode chưa có bản sao của block đó; HDFS không
+đặt hai replica của cùng block trên một DataNode {[}3{]}. Tệp vẫn
+\texttt{HEALTHY} khi mọi block còn ít nhất
+\texttt{dfs.}\allowbreak{}\texttt{namenode.}\allowbreak{}\texttt{replication.}\allowbreak{}\texttt{min}\allowbreak{}
+(= 1) replica sống. Mất dữ liệu chỉ ứng với trạng thái MISSING hoặc
+CORRUPT.
+
+\subsection{Safe mode và fsimage}\label{safe-mode-vuxe0-fsimage}
+
+Vị trí block không có trong fsimage hay edit log, nó chỉ nằm trong RAM
+của NameNode và được dựng lại từ block report sau mỗi lần khởi động
+{[}2{]}, {[}3{]}. Trong lúc đó NameNode ở safe mode (chỉ đọc) cho tới
+khi tỉ lệ block đã được báo cáo đạt
+\texttt{dfs.}\allowbreak{}\texttt{namenode.}\allowbreak{}\texttt{safemode.}\allowbreak{}\texttt{threshold-pct}\allowbreak{}
+(99.9 \%), cộng thêm khoảng chờ
+\texttt{dfs.}\allowbreak{}\texttt{namenode.}\allowbreak{}\texttt{safemode.}\allowbreak{}\texttt{extension}\allowbreak{}.
+Kleppmann {[}6{]} bàn rộng hơn về đánh đổi giữa nhân bản, độ bền và chi
+phí phục hồi trong hệ phân tán.
+
+\section{Môi trường và phương pháp thực nghiệm}\label{sec:l01-method}
+
+\subsection{Môi trường}\label{muxf4i-trux1b0ux1eddng}
+
+Cluster chạy trên một máy, các thành phần Hadoop là container dùng chung
+image
+\texttt{de-labs/}\allowbreak{}\texttt{hadoop:}\allowbreak{}\texttt{3.}\allowbreak{}\texttt{4.}\allowbreak{}\texttt{3}\allowbreak{}
+(Bảng~\ref{tbl:l01-env}). Chúng tôi rút
+\texttt{recheck-interval}\allowbreak{} xuống 30 s (mặc định 5 phút) để
+thấy được sự cố DataNode trong khoảng 90 s thay vì phải chờ hơn 10 phút,
+và rút \texttt{safemode.}\allowbreak{}\texttt{extension}\allowbreak{}
+xuống 5 s.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\caption{\label{tbl:l01-env}Phần cứng, phần mềm và cấu hình HDFS dùng
+trong thực nghiệm.}\tabularnewline
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Thành phần
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Giá trị
+\end{minipage} \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Thành phần
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Giá trị
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Máy chủ & WSL2, x86\_64, 12 CPU, bộ nhớ Docker 31.9 GB \\
+Phần mềm & Hadoop 3.4.3 (image
+\texttt{de-labs/}\allowbreak{}\texttt{hadoop:}\allowbreak{}\texttt{3.}\allowbreak{}\texttt{4.}\allowbreak{}\texttt{3}\allowbreak{}),
+Docker Compose \\
+Dịch vụ & 1 NameNode, 3 DataNode, ResourceManager, NodeManager,
+JobHistory \\
+Topology & 1 rack (\texttt{/default-rack}) \\
+\texttt{dfs.replication} & 3 \\
+\texttt{dfs.blocksize} & 134,217,728 byte (128 MB, mặc định) \\
+\texttt{dfs.}\allowbreak{}\texttt{heartbeat.}\allowbreak{}\texttt{interval}\allowbreak{}
+& 3 s \\
+\texttt{dfs.}\allowbreak{}\texttt{namenode.}\allowbreak{}\texttt{heartbeat.}\allowbreak{}\texttt{recheck-interval}\allowbreak{}
+& 30,000 ms (mặc định 300,000 ms) \\
+\texttt{dfs.}\allowbreak{}\texttt{namenode.}\allowbreak{}\texttt{stale.}\allowbreak{}\texttt{datanode.}\allowbreak{}\texttt{interval}\allowbreak{}
+& 15,000 ms (mặc định 30,000 ms) \\
+\texttt{dfs.}\allowbreak{}\texttt{namenode.}\allowbreak{}\texttt{redundancy.}\allowbreak{}\texttt{interval.}\allowbreak{}\texttt{seconds}\allowbreak{}
+& 3 s \\
+\texttt{dfs.}\allowbreak{}\texttt{namenode.}\allowbreak{}\texttt{safemode.}\allowbreak{}\texttt{extension}\allowbreak{}
+& 5,000 ms (mặc định 30,000 ms) \\
+\texttt{dfs.}\allowbreak{}\texttt{permissions.}\allowbreak{}\texttt{enabled}\allowbreak{}
+& false (chỉ dùng cho môi trường học tập) \\
+\end{longtable}
+
+\texttt{fsck} in vị trí replica theo IP, nên chúng tôi ghi lại ánh xạ IP
+sang hostname từ \texttt{hdfs\ dfsadmin\ -report}\allowbreak{} ngay sau
+khi khởi động (Bảng~\ref{tbl:l01-ip}). Block Pool ID
+\texttt{BP-361839436-172.}\allowbreak{}\texttt{29.}\allowbreak{}\texttt{0.}\allowbreak{}\texttt{7-1793355266756}\allowbreak{}
+cho biết NameNode ở 172.29.0.7.
 
 \begin{longtable}[]{@{}ll@{}}
+\caption{\label{tbl:l01-ip}Ánh xạ địa chỉ IP sang hostname của các
+DataNode.}\tabularnewline
 \toprule\noalign{}
-IP & Host \\
+Địa chỉ IP & Hostname \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+Địa chỉ IP & Hostname \\
 \midrule\noalign{}
 \endhead
 \bottomrule\noalign{}
@@ -167,15 +409,804 @@ IP & Host \\
 172.29.0.3 & datanode3 \\
 \end{longtable}
 
-\subsection{\texorpdfstring{1--2. Khởi động cluster và
-\texttt{hdfs\ dfs}
-shell}{1--2. Khởi động cluster và hdfs dfs shell}}\label{khux1edfi-ux111ux1ed9ng-cluster-vuxe0-hdfs-dfs-shell}
+\subsection{Dữ liệu}\label{dux1eef-liux1ec7u}
 
-\pandocbounded{\includegraphics[keepaspectratio]{img/01_cluster_and_dfs_shell.png}}
-\pandocbounded{\includegraphics[keepaspectratio]{img/11_ui_namenode_overview_healthy.png}}
-\pandocbounded{\includegraphics[keepaspectratio]{img/12_ui_datanodes_healthy.png}}
+Hai tệp NYC Taxi được đọc từ thư mục \texttt{/datasets} bind mount vào
+container:
+\texttt{taxi\_}\allowbreak{}\texttt{zone\_}\allowbreak{}\texttt{lookup.}\allowbreak{}\texttt{csv}\allowbreak{}
+(12,331 byte, 70 dòng chứa \texttt{Manhattan}) và
+\texttt{yellow\_}\allowbreak{}\texttt{tripdata\_}\allowbreak{}\texttt{2024-01.}\allowbreak{}\texttt{parquet}\allowbreak{}
+(49,961,641 byte, \texttt{hdfs\ dfs\ -du\ -h} hiển thị 47.6 M).
 
-\textbf{TODO 2.1}
+\subsection{Quy trình}\label{quy-truxecnh}
+
+Mọi lệnh chạy trong container \texttt{namenode}, đóng vai trò edge node,
+trừ lệnh \texttt{docker\ compose} chạy trên host:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Khởi động cluster, chờ đủ 3 DataNode đăng ký, mở giao diện web
+  NameNode ở cổng 9870.
+\item
+  Thao tác \texttt{hdfs\ dfs}: tạo thư mục, tải
+  \texttt{taxi\_}\allowbreak{}\texttt{zone\_}\allowbreak{}\texttt{lookup.}\allowbreak{}\texttt{csv}\allowbreak{}
+  lên \texttt{/data/taxi}, đọc, sao chép, đổi tên, tải về, xóa, đo dung
+  lượng; in thuộc tính tệp bằng \texttt{hdfs\ dfs\ -stat}.
+\item
+  Tải tệp Parquet hai lần: block mặc định vào
+  \texttt{/}\allowbreak{}\texttt{data/}\allowbreak{}\texttt{taxi/}\allowbreak{}\texttt{default\_}\allowbreak{}\texttt{blocks}\allowbreak{}
+  và
+  \texttt{-D\ dfs.}\allowbreak{}\texttt{blocksize=}\allowbreak{}\texttt{16m}\allowbreak{}
+  vào
+  \texttt{/}\allowbreak{}\texttt{data/}\allowbreak{}\texttt{taxi/}\allowbreak{}\texttt{small\_}\allowbreak{}\texttt{blocks}\allowbreak{};
+  so sánh bằng \texttt{fsck} và liệt kê tệp block vật lý trên datanode1.
+\item
+  Hạ hệ số của tệp \texttt{small\_blocks} bằng
+  \texttt{hdfs\ dfs\ -setrep\ -w\ 2}\allowbreak{}; ghi thêm một tệp với
+  hệ số 1 trong một lệnh.
+\item
+  Chạy \texttt{fsck} tệp \texttt{small\_blocks}, dừng \texttt{datanode3}
+  bằng \texttt{docker\ compose\ stop}\allowbreak{}, thăm dò
+  \texttt{hdfs\ dfsadmin\ -report}\allowbreak{} khoảng 8 s một lần; chạy
+  lại \texttt{fsck}, kiểm tra md5 của tệp hệ số 3; khởi động lại
+  datanode3.
+\item
+  Bật, tắt safe mode thủ công, thử ghi và đọc; khởi động lại NameNode để
+  xem safe mode tự động.
+\item
+  \texttt{saveNamespace}, chuyển fsimage sang XML bằng
+  \texttt{hdfs\ oiv} và tìm thông tin vị trí block trong đó.
+\end{enumerate}
+
+Đầu ra lưu trong các tệp \texttt{0*.txt} (Phụ lục A), ảnh chụp màn hình
+trong \texttt{img/}.
+
+\section{Kết quả thực nghiệm}\label{sec:l01-results}
+
+\subsection{\texorpdfstring{Khởi động cluster và bộ lệnh
+\texttt{hdfs\ dfs}}{Khởi động cluster và bộ lệnh hdfs dfs}}\label{khux1edfi-ux111ux1ed9ng-cluster-vuxe0-bux1ed9-lux1ec7nh-hdfs-dfs}
+
+\texttt{hdfs\ dfsadmin\ -report}\allowbreak{} ghi nhận
+\texttt{Live\ datanodes\ (3)}\allowbreak{}, safe mode OFF. Các lệnh
+\texttt{hdfs\ dfs} đều chạy được (Hình~\ref{fig:l01-shell}).
+\texttt{taxi\_}\allowbreak{}\texttt{zone\_}\allowbreak{}\texttt{lookup.}\allowbreak{}\texttt{csv}\allowbreak{}
+có hệ số 3 (cột thứ hai của \texttt{ls}), \texttt{cat} kết hợp
+\texttt{grep\ -c} đếm được 70 dòng Manhattan, bản tải về
+\texttt{/}\allowbreak{}\texttt{tmp/}\allowbreak{}\texttt{zones\_}\allowbreak{}\texttt{copy.}\allowbreak{}\texttt{csv}\allowbreak{}
+đúng 12,331 byte. \texttt{du\ -h} in 12.0 K dung lượng logic và 36.1 K
+dung lượng thô, gấp ba do nhân bản. \texttt{hdfs\ dfs\ -stat} trả về
+\texttt{blocksize=}\allowbreak{}\texttt{134217728\ repl=}\allowbreak{}\texttt{3\ size=}\allowbreak{}\texttt{12331}\allowbreak{}:
+tệp 12 KB vẫn được gán block size 128 MB.
+
+\begin{figure}
+\centering
+\includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/01_cluster_and_dfs_shell.png}
+\caption{Đầu ra \texttt{dfsadmin\ -report}\allowbreak{} (3 DataNode
+sống, ánh xạ IP sang hostname), chuỗi lệnh \texttt{hdfs\ dfs} và kết quả
+\texttt{hdfs\ dfs\ -stat}.}\label{fig:l01-shell}
+\end{figure}
+
+Trên giao diện web, trang Overview báo NameNode \texttt{active}, phiên
+bản 3.4.3, safe mode tắt, 3 node sống, 0 node chết, 0 block
+under-replicated (Hình~\ref{fig:l01-ui-overview}). Trang Datanodes liệt
+kê cả ba node ở trạng thái In service (Hình~\ref{fig:l01-ui-datanodes}).
+Trang Browse Directory cho thấy \texttt{/data/taxi} gồm
+\texttt{default\_blocks}, \texttt{small\_blocks} và
+\texttt{taxi\_}\allowbreak{}\texttt{zone\_}\allowbreak{}\texttt{lookup.}\allowbreak{}\texttt{csv}\allowbreak{}
+với Replication 3, Block Size 128 MB (Hình~\ref{fig:l01-ui-browse}).
+
+\begin{figure}
+\centering
+\includegraphics[width=1\linewidth,height=\textheight,keepaspectratio]{img/11_ui_namenode_overview_healthy.png}
+\caption{Trang Overview của NameNode khi cluster khỏe mạnh: 3 Live
+Nodes, 0 Dead Nodes, 0 block
+under-replicated.}\label{fig:l01-ui-overview}
+\end{figure}
+
+\begin{figure}
+\centering
+\includegraphics[width=1\linewidth,height=\textheight,keepaspectratio]{img/12_ui_datanodes_healthy.png}
+\caption{Trang Datanodes của NameNode khi cả ba DataNode đều ở trạng
+thái In service.}\label{fig:l01-ui-datanodes}
+\end{figure}
+
+\begin{figure}
+\centering
+\includegraphics[width=1\linewidth,height=\textheight,keepaspectratio]{img/13_ui_browse_data_taxi.png}
+\caption{Trang Browse Directory hiển thị thư mục \texttt{/data/taxi} với
+hệ số nhân bản và block size của từng mục.}\label{fig:l01-ui-browse}
+\end{figure}
+
+\subsection{Ảnh hưởng của kích thước
+block}\label{ux1ea3nh-hux1b0ux1edfng-cux1ee7a-kuxedch-thux1b0ux1edbc-block}
+
+Tệp Parquet được tải lên hai lần. \texttt{hdfs\ dfs\ -stat} cho bản thứ
+nhất \texttt{blocksize=}\allowbreak{}\texttt{134217728}\allowbreak{},
+bản thứ hai
+\texttt{blocksize=}\allowbreak{}\texttt{16777216}\allowbreak{}, cả hai
+\texttt{repl=3}. Kết quả \texttt{fsck} ở Bảng~\ref{tbl:l01-blocks} và
+Hình~\ref{fig:l01-blocks}.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}@{}}
+\caption{\label{tbl:l01-blocks}Số block của cùng một tệp khi dùng block
+128 MB và 16 MB.}\tabularnewline
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Cách tải lên
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Block size (byte)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Số block
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Kích thước từng block (byte)
+\end{minipage} \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Cách tải lên
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Block size (byte)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Số block
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Kích thước từng block (byte)
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Mặc định & 134,217,728 & 1 & 49,961,641 \\
+\texttt{-D\ dfs.}\allowbreak{}\texttt{blocksize=}\allowbreak{}\texttt{16m}\allowbreak{}
+& 16,777,216 & 3 & 16,777,216 + 16,777,216 + 16,407,209 \\
+\end{longtable}
+
+\begin{figure}
+\centering
+\includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/02_blocks_128m_vs_16m.png}
+\caption{Kết quả \texttt{fsck\ -files\ -blocks\ -locations}\allowbreak{}
+của tệp Parquet với block mặc định (1 block) và block 16 MB (3
+block).}\label{fig:l01-blocks}
+\end{figure}
+
+Ở lần chạy \texttt{fsck} đầu tiên trên \texttt{small\_blocks} (10:15:21,
+ngay sau khi ghi), chúng tôi thấy hai block \texttt{blk\_1073741829} và
+\texttt{blk\_1073741830} chỉ có \texttt{Live\_repl=2}, kèm
+\texttt{Under-replicated\ blocks:}\allowbreak{}\texttt{\ 2\ (66.}\allowbreak{}\texttt{666664\ \%)}\allowbreak{}
+và
+\texttt{Missing\ replicas:}\allowbreak{}\texttt{\ 2\ (22.}\allowbreak{}\texttt{222221\ \%)}\allowbreak{},
+dù trạng thái vẫn \texttt{HEALTHY}. Lúc đầu chúng tôi nghĩ việc ghi bị
+lỗi, nhưng lần \texttt{fsck} tiếp theo (đầu tệp \texttt{02\_setrep.txt})
+đã cho cả ba block \texttt{Live\_repl=3} và
+\texttt{Under-replicated\ blocks:}\allowbreak{}\texttt{\ 0}\allowbreak{}.
+Lý do là NameNode chỉ cập nhật vị trí replica khi DataNode báo về, nên
+sau khi ghi có một khoảng trễ ngắn.
+
+Trên datanode1, mỗi block là một tệp
+\texttt{blk\_\textless{}id\textgreater{}} kèm tệp \texttt{.meta}
+(Hình~\ref{fig:l01-physical}, Bảng~\ref{tbl:l01-physical}). Tệp
+\texttt{blk\_1073741830} chỉ có 16,407,209 byte, không bị đệm lên 16 MB.
+Tệp \texttt{.meta} 131,079 byte của block 16,777,216 byte khớp với 4
+byte CRC cho mỗi 512 byte dữ liệu
+(\(16{,}777{,}216 / 512 \times 4 = 131{,}072\)) cộng 7 byte header, tức
+chi phí checksum khoảng 0.78 \%.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}@{}}
+\caption{\label{tbl:l01-physical}Các tệp block vật lý trên datanode1 và
+tệp checksum đi kèm.}\tabularnewline
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Tệp block
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Dữ liệu (byte)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\texttt{.meta} (byte)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Thuộc tệp
+\end{minipage} \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Tệp block
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Dữ liệu (byte)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\texttt{.meta} (byte)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Thuộc tệp
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{blk\_1073741825} & 12,331 & 107 &
+\texttt{taxi\_}\allowbreak{}\texttt{zone\_}\allowbreak{}\texttt{lookup.}\allowbreak{}\texttt{csv}\allowbreak{} \\
+\texttt{blk\_1073741827} & 49,961,641 & 390,335 &
+\texttt{default\_}\allowbreak{}\texttt{blocks/}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{parquet}\allowbreak{} \\
+\texttt{blk\_1073741828} & 16,777,216 & 131,079 &
+\texttt{small\_}\allowbreak{}\texttt{blocks/}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{parquet}\allowbreak{},
+block 0 \\
+\texttt{blk\_1073741829} & 16,777,216 & 131,079 &
+\texttt{small\_}\allowbreak{}\texttt{blocks/}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{parquet}\allowbreak{},
+block 1 \\
+\texttt{blk\_1073741830} & 16,407,209 & 128,191 &
+\texttt{small\_}\allowbreak{}\texttt{blocks/}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{parquet}\allowbreak{},
+block 2 \\
+\end{longtable}
+
+\begin{figure}
+\centering
+\includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/03_physical_block_files_datanode1.png}
+\caption{Tệp block vật lý \texttt{blk\_\textless{}id\textgreater{}} và
+\texttt{blk\_}\allowbreak{}\texttt{\textless{}id\textgreater{}\_}\allowbreak{}\texttt{\textless{}genstamp\textgreater{}.}\allowbreak{}\texttt{meta}\allowbreak{}
+trong thư mục dữ liệu của datanode1.}\label{fig:l01-physical}
+\end{figure}
+
+\subsection{Thay đổi hệ số nhân
+bản}\label{thay-ux111ux1ed5i-hux1ec7-sux1ed1-nhuxe2n-bux1ea3n}
+
+\texttt{hdfs\ dfs\ -setrep\ -w\ 2}\allowbreak{} trên tệp
+\texttt{small\_blocks} in cảnh báo rằng việc giảm hệ số có thể phải chờ
+lâu, nhưng thực tế kết thúc gần như ngay (\texttt{.\ done}). Sau đó
+\texttt{ls} hiển thị hệ số 2 và \texttt{fsck} cho \texttt{Live\_repl=2}
+ở cả ba block. Dung lượng thô của \texttt{small\_blocks} giảm đúng một
+phần ba so với bản \texttt{default\_blocks} còn hệ số 3
+(Bảng~\ref{tbl:l01-du}).
+
+\begin{longtable}[]{@{}llll@{}}
+\caption{\label{tbl:l01-du}Dung lượng logic và dung lượng thô theo
+\texttt{hdfs\ dfs\ -du\ -h} sau khi \texttt{setrep\ 2}.}\tabularnewline
+\toprule\noalign{}
+Đường dẫn & Hệ số & Dung lượng logic & Dung lượng thô \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+Đường dẫn & Hệ số & Dung lượng logic & Dung lượng thô \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{/}\allowbreak{}\texttt{data/}\allowbreak{}\texttt{taxi/}\allowbreak{}\texttt{default\_}\allowbreak{}\texttt{blocks}\allowbreak{}
+& 3 & 47.6 M & 142.9 M \\
+\texttt{/}\allowbreak{}\texttt{data/}\allowbreak{}\texttt{taxi/}\allowbreak{}\texttt{small\_}\allowbreak{}\texttt{blocks}\allowbreak{}
+& 2 & 47.6 M & 95.3 M \\
+\texttt{/}\allowbreak{}\texttt{data/}\allowbreak{}\texttt{taxi/}\allowbreak{}\texttt{taxi\_}\allowbreak{}\texttt{zone\_}\allowbreak{}\texttt{lookup.}\allowbreak{}\texttt{csv}\allowbreak{}
+& 3 & 12.0 K & 36.1 K \\
+\end{longtable}
+
+Để ghi tệp với một replica mà không cần \texttt{setrep}, chỉ cần ghi đè
+\texttt{-D\ dfs.}\allowbreak{}\texttt{replication=}\allowbreak{}\texttt{1}\allowbreak{}
+ngay trong lệnh \texttt{put}. Kết quả là
+\texttt{one\_}\allowbreak{}\texttt{replica.}\allowbreak{}\texttt{csv\ repl=}\allowbreak{}\texttt{1}\allowbreak{},
+block duy nhất \texttt{blk\_1073741831} (12,331 byte,
+\texttt{Live\_repl=1}) nằm trên 172.29.0.5, tức datanode1
+(Hình~\ref{fig:l01-setrep}).
+
+\begin{figure}
+\centering
+\includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/04_setrep2_and_todo4.1.png}
+\caption{Kết quả \texttt{setrep\ -w\ 2}, \texttt{du\ -h} sau khi giảm hệ
+số và tệp được ghi với hệ số nhân bản 1.}\label{fig:l01-setrep}
+\end{figure}
+
+\subsection{Sự cố DataNode và tái nhân
+bản}\label{sux1ef1-cux1ed1-datanode-vuxe0-tuxe1i-nhuxe2n-bux1ea3n}
+
+Ngay trước khi dừng node (10:15:58), cả ba block của
+\texttt{small\_blocks} đều có replica trên datanode1 và datanode3, không
+block nào nằm trên datanode2 (Hình~\ref{fig:l01-before}, cột ``Trước sự
+cố'' của Bảng~\ref{tbl:l01-locations}). Vì vậy chúng tôi chọn dừng
+datanode3: node này giữ replica của mọi block thuộc tệp hệ số 2.
+
+\begin{figure}
+\centering
+\includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/05_fsck_small_blocks_BEFORE_kill.png}
+\caption{\texttt{fsck} của tệp block 16 MB trước khi dừng datanode3: mỗi
+block có 2 replica trên datanode1 và datanode3.}\label{fig:l01-before}
+\end{figure}
+
+Datanode3 bị dừng lúc 10:16:06 UTC. Diễn biến theo kết quả thăm dò ở
+Bảng~\ref{tbl:l01-timeline} và Hình~\ref{fig:l01-timeline}.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\caption{\label{tbl:l01-timeline}Diễn biến sau khi dừng datanode3 theo
+\texttt{dfsadmin\ -report}\allowbreak{} và log NameNode.}\tabularnewline
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Thời điểm
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Sự kiện
+\end{minipage} \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Thời điểm
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Sự kiện
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+t+0 s (10:16:06) &
+\texttt{docker\ compose\ stop\ datanode3}\allowbreak{} \\
+t+1 s đến t+82 s & \texttt{Live\ datanodes\ (3)}\allowbreak{},
+\texttt{Under\ replicated\ blocks:}\allowbreak{}\texttt{\ 0}\allowbreak{}
+(11 lần thăm dò) \\
+t+90 s & \texttt{Live\ datanodes\ (2)}\allowbreak{},
+\texttt{Dead\ datanodes\ (1)}\allowbreak{}: node bị tuyên bố chết \\
+t+94 s (10:17:40,079) & Log NameNode:
+\texttt{removeDeadDatanode:}\allowbreak{}\texttt{\ lost\ heartbeat\ from\ 172.}\allowbreak{}\texttt{29.}\allowbreak{}\texttt{0.}\allowbreak{}\texttt{3:}\allowbreak{}\texttt{9866}\allowbreak{} \\
+t+98 s đến t+137 s &
+\texttt{Under\ replicated\ blocks:}\allowbreak{}\texttt{\ 2}\allowbreak{}
+ổn định qua 6 lần thăm dò \\
+\end{longtable}
+
+\begin{figure}
+\centering
+\includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/06_kill_datanode3_timeline.png}
+\caption{Dòng thời gian thăm dò \texttt{dfsadmin\ -report}\allowbreak{}
+sau khi dừng datanode3 và dòng log
+\texttt{removeDeadDatanode}\allowbreak{} của
+NameNode.}\label{fig:l01-timeline}
+\end{figure}
+
+Con số 90 s khớp với công thức ở Mục~\ref{sec:l01-theory}:
+\(2 \times 30 + 10 \times 3 = 90\) s. Replica bị gỡ khỏi block map muộn
+hơn 4 s vì bộ giám sát heartbeat chỉ chạy theo chu kỳ recheck-interval,
+và phải sau mốc này chỉ số under-replicated mới tăng. Có một điểm lúc
+đầu chúng tôi thấy lạ: ba block của tệp hệ số 2 cũng mất một replica,
+nhưng không lần thăm dò nào ghi nhận quá 2 block under-replicated. Cách
+giải thích hợp lý là ba block đó đã được tái nhân bản trong khoảng giữa
+t+94 s và t+98 s, nhanh hơn chu kỳ thăm dò. Giá trị 2 còn lại là hai
+block của các tệp hệ số 3 (Bảng~\ref{tbl:l01-underrep}).
+
+Trên giao diện web, trang Overview hiện một Dead Node
+(Hình~\ref{fig:l01-ui-dead-overview}) và trang Datanodes đánh dấu
+datanode3 màu đỏ kèm thời điểm liên lạc cuối
+(Hình~\ref{fig:l01-ui-dead-datanodes}). Lần đo chính chúng tôi không kịp
+chụp giao diện, nên hai ảnh này được chụp ở một lần dừng datanode3 khác.
+Mốc ``Last contact'' 17:21:04 +0700 (10:21:04 UTC) muộn hơn dòng thời
+gian trong log, và hai ảnh không thuộc lần đo ở
+Bảng~\ref{tbl:l01-timeline}.
+
+\begin{figure}
+\centering
+\includegraphics[width=1\linewidth,height=\textheight,keepaspectratio]{img/14_ui_overview_datanode3_DEAD.png}
+\caption{Trang Overview của NameNode khi datanode3 đã bị tuyên bố
+chết.}\label{fig:l01-ui-dead-overview}
+\end{figure}
+
+\begin{figure}
+\centering
+\includegraphics[width=1\linewidth,height=\textheight,keepaspectratio]{img/15_ui_datanodes_datanode3_DEAD.png}
+\caption{Trang Datanodes khi datanode3 chết: datanode1 và datanode2 In
+service, datanode3 ở trạng thái Down.}\label{fig:l01-ui-dead-datanodes}
+\end{figure}
+
+\texttt{fsck} lúc 10:18:38 cho thấy \texttt{small\_blocks} đã trở lại
+\texttt{OK}:
+\texttt{Number\ of\ data-nodes:}\allowbreak{}\texttt{\ 2}\allowbreak{},
+cả ba block \texttt{Live\_repl=2},
+\texttt{Under-replicated\ blocks:}\allowbreak{}\texttt{\ 0}\allowbreak{}
+(Hình~\ref{fig:l01-after}). Replica trên datanode3 đã được chép sang
+datanode2, node còn sống duy nhất chưa giữ bản sao
+(Bảng~\ref{tbl:l01-locations}).
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}@{}}
+\caption{\label{tbl:l01-locations}Vị trí replica của tệp
+\texttt{small\_blocks} (hệ số 2) trước và sau khi dừng
+datanode3.}\tabularnewline
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Block
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Kích thước (byte)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Trước sự cố
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Sau sự cố
+\end{minipage} \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Block
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Kích thước (byte)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Trước sự cố
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Sau sự cố
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{blk\_1073741828} & 16,777,216 & datanode1, datanode3 &
+datanode1, datanode2 \\
+\texttt{blk\_1073741829} & 16,777,216 & datanode3, datanode1 &
+datanode1, datanode2 \\
+\texttt{blk\_1073741830} & 16,407,209 & datanode3, datanode1 &
+datanode1, datanode2 \\
+\end{longtable}
+
+\begin{figure}
+\centering
+\includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/07_fsck_small_blocks_AFTER_kill.png}
+\caption{\texttt{fsck} của tệp block 16 MB sau khi dừng datanode3:
+replica đã chuyển sang datanode2, tệp trở lại trạng thái
+OK.}\label{fig:l01-after}
+\end{figure}
+
+Với toàn bộ \texttt{/data}, \texttt{fsck} báo
+\textbf{\texttt{Under-replicated\ blocks:}\allowbreak{}\texttt{\ 2\ (40.}\allowbreak{}\texttt{0\ \%)}\allowbreak{}}
+(2 trên 5 block) và \texttt{Status:\ HEALTHY}
+(Hình~\ref{fig:l01-underrep}). Hai block này thuộc hai tệp hệ số 3, mỗi
+block còn 2 replica trên datanode2 và datanode1
+(Bảng~\ref{tbl:l01-underrep}). Tệp Parquet hệ số 3 tải về có md5
+\texttt{10dff36f5a2fc325274438bf361c70f0}\allowbreak{}, trùng với bản
+gốc. Tệp
+\texttt{/}\allowbreak{}\texttt{tmp/}\allowbreak{}\texttt{one\_}\allowbreak{}\texttt{replica.}\allowbreak{}\texttt{csv}\allowbreak{}
+không bị MISSING vì replica duy nhất của nó nằm trên datanode1.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+\caption{\label{tbl:l01-underrep}Trạng thái các tệp trong \texttt{/data}
+khi chỉ còn 2 DataNode sống.}\tabularnewline
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Tệp
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Hệ số đích
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Block
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\texttt{Live\_repl}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Trạng thái
+\end{minipage} \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Tệp
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Hệ số đích
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Block
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\texttt{Live\_repl}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Trạng thái
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{default\_}\allowbreak{}\texttt{blocks/}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{parquet}\allowbreak{}
+& 3 & \texttt{blk\_1073741827} & 2 & Under replicated \\
+\texttt{small\_}\allowbreak{}\texttt{blocks/}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{.}\allowbreak{}\texttt{parquet}\allowbreak{}
+& 2 & 3 block & 2 & OK \\
+\texttt{taxi\_}\allowbreak{}\texttt{zone\_}\allowbreak{}\texttt{lookup.}\allowbreak{}\texttt{csv}\allowbreak{}
+& 3 & \texttt{blk\_1073741825} & 2 & Under replicated \\
+\end{longtable}
+
+\begin{figure}
+\centering
+\includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/08_fsck_data_underreplicated_md5.png}
+\caption{\texttt{fsck\ /data} khi datanode3 chết: hai tệp hệ số 3
+under-replicated nhưng HEALTHY; md5 của tệp tải về trùng bản
+gốc.}\label{fig:l01-underrep}
+\end{figure}
+
+Khởi động lại datanode3, \texttt{dfsadmin\ -report}\allowbreak{} trở về
+\texttt{Live\ datanodes\ (3)}\allowbreak{} và \texttt{fsck} báo
+\texttt{Under-replicated\ blocks:}\allowbreak{}\texttt{\ 0}\allowbreak{},
+\texttt{Over-replicated\ blocks:}\allowbreak{}\texttt{\ 0}\allowbreak{},
+\texttt{Status:\ HEALTHY} (Hình~\ref{fig:l01-back}). Các block hệ số 3
+đã có lại replica thứ ba. Tệp hệ số 2 lúc này có replica trên cả ba
+node, và NameNode đã xóa bớt bản thừa.
+
+\begin{figure}
+\centering
+\includegraphics[width=0.7\linewidth,height=\textheight,keepaspectratio]{img/09_datanode3_back.png}
+\caption{Trạng thái cluster sau khi datanode3 quay lại: không còn block
+under-replicated hay over-replicated.}\label{fig:l01-back}
+\end{figure}
+
+\subsection{Safe mode và fsimage}\label{safe-mode-vuxe0-fsimage-1}
+
+Khi bật safe mode thủ công, lệnh ghi bị từ chối với thông báo
+\texttt{put:}\allowbreak{}\texttt{\ Cannot\ create\ file/}\allowbreak{}\texttt{tmp/}\allowbreak{}\texttt{x.}\allowbreak{}\texttt{csv.}\allowbreak{}\texttt{\_}\allowbreak{}\texttt{COPYING\_}\allowbreak{}\texttt{.}\allowbreak{}\texttt{\ Name\ node\ is\ in\ safe\ mode.}\allowbreak{},
+còn
+\texttt{hdfs\ dfs\ -ls\ /}\allowbreak{}\texttt{data/}\allowbreak{}\texttt{taxi}\allowbreak{}
+vẫn trả về 3 mục (Hình~\ref{fig:l01-safemode}). Sau
+\texttt{docker\ compose\ restart\ namenode}\allowbreak{},
+\texttt{-safemode\ get} báo \texttt{Safe\ mode\ is\ ON} trong vài giây
+đầu rồi chuyển sang OFF khi đã nhận đủ block report.
+
+\texttt{saveNamespace} tạo
+\texttt{fsimage\_}\allowbreak{}\texttt{0000000000000000059}\allowbreak{}
+dung lượng 1,574 byte (kèm \texttt{.md5} 62 byte, \texttt{seen\_txid} 3
+byte, \texttt{VERSION} 189 byte). Bản XML do \texttt{hdfs\ oiv} sinh ra
+có tên thư mục và tệp (\texttt{tmp}, \texttt{hadoop-yarn},
+\texttt{user}, \texttt{root}, \texttt{data}, \texttt{taxi},
+\texttt{taxi\_}\allowbreak{}\texttt{zone\_}\allowbreak{}\texttt{lookup.}\allowbreak{}\texttt{csv}\allowbreak{},
+\ldots) cùng block ID, nhưng tìm thông tin DataNode (cổng 9866) thì được
+0 dòng. fsimage không chứa vị trí block.
+
+\begin{figure}
+\centering
+\includegraphics[width=0.85\linewidth,height=\textheight,keepaspectratio]{img/10_safemode_fsimage.png}
+\caption{Safe mode thủ công (ghi bị từ chối, đọc vẫn hoạt động), safe
+mode tự động khi khởi động lại và nội dung
+fsimage.}\label{fig:l01-safemode}
+\end{figure}
+
+\section{Thảo luận}\label{sec:l01-discussion}
+
+\subsection{Tệp 300 MB với cấu hình mặc định chiếm bao nhiêu block,
+replica và dung lượng?}\label{sec:l01-q1}
+
+Số block là \(\lceil 300/128 \rceil = 3\): hai block 128 MB và một block
+cuối 44 MB. Với hệ số 3 có \(3 \times 3 = 9\) replica và khoảng
+\(3 \times 300 = 900\) MB dung lượng thô, cộng thêm tệp \texttt{.meta}
+khoảng 0.78 \% (Bảng~\ref{tbl:l01-physical}). Block cuối không chiếm
+trọn 128 MB, giống block 16,407,209 byte ở Bảng~\ref{tbl:l01-blocks}, và
+phép nhân ba dung lượng khớp với số đo ở Bảng~\ref{tbl:l01-du}. NameNode
+chỉ giữ 3 đối tượng block trong RAM, không phụ thuộc hệ số nhân bản.
+
+\subsection{Vì sao block cuối của tệp taxi nhỏ hơn 16 MB, và có tốn 16
+MB đĩa không?}\label{sec:l01-q2}
+
+Vì tệp kết thúc ở đó:
+\(49{,}961{,}641 - 2 \times 16{,}777{,}216 = 16{,}407{,}209\) byte. Tệp
+\texttt{blk\_1073741830} trên datanode1 đúng bằng kích thước này
+(Hình~\ref{fig:l01-physical}), nên không có phần đĩa nào bị bỏ phí.
+Block của hệ thống tệp cục bộ (ví dụ 4 KB) thì khác, nó được cấp phát
+trọn và phần thừa bị bỏ trống. Tệp 12,331 byte được gán block size 128
+MB cũng chỉ chiếm 12,331 byte trên mỗi DataNode.
+
+\subsection{Vị trí block được lưu ở đâu, và khi NameNode khởi động lại
+thì sao?}\label{sec:l01-q3}
+
+Ánh xạ block sang DataNode chỉ nằm trong RAM của NameNode. Thực nghiệm ở
+Hình~\ref{fig:l01-safemode} cho thấy fsimage có tên tệp và block ID
+nhưng không có thông tin DataNode nào. Khi khởi động lại, NameNode nạp
+namespace từ fsimage và edit log rồi dựng lại block map từ block report,
+nên phải ở safe mode cho tới khi nhận đủ báo cáo. Thiết kế này hợp lý vì
+DataNode mới biết chắc block nào đang nằm trên đĩa của nó. Trong lúc
+NameNode tắt, đĩa có thể hỏng hoặc node bị thay, nên danh sách vị trí
+lưu sẵn sẽ nhanh chóng sai {[}1{]}, {[}2{]}. Hiện tượng thiếu replica
+tạm thời ngay sau khi ghi (Mục~\ref{sec:l01-results}) cũng cho thấy
+NameNode chỉ biết vị trí replica qua báo cáo của DataNode.
+
+\subsection{Vì sao tệp hệ số 2 được phục hồi còn tệp hệ số 3 thì
+không?}\label{sec:l01-q4}
+
+Muốn tái nhân bản phải có một DataNode còn sống chưa giữ replica của
+block, vì hai replica trên cùng node không tăng khả năng chịu lỗi nên
+HDFS không cho phép. Sau khi datanode3 chết chỉ còn datanode1 và
+datanode2. Mỗi block của tệp hệ số 2 ban đầu nằm trên datanode1 và
+datanode3 (Bảng~\ref{tbl:l01-locations}), nên datanode2 nhận bản sao mới
+và tệp trở lại \texttt{OK} (Hình~\ref{fig:l01-after}). Block của hai tệp
+hệ số 3 thì đã có mặt trên cả hai node còn lại
+(Bảng~\ref{tbl:l01-underrep}), không còn chỗ cho bản thứ ba, nên phải
+chờ datanode3 quay lại (Hình~\ref{fig:l01-back}). Số replica tối đa đạt
+được là \(\min(\text{hệ số đích}, \text{số DataNode sống})\).
+
+\subsection{\texorpdfstring{\texttt{fsck} báo gì khi có block
+under-replicated, và vì sao đó chưa phải
+lỗi?}{fsck báo gì khi có block under-replicated, và vì sao đó chưa phải lỗi?}}\label{sec:l01-q5}
+
+\texttt{fsck\ /data} vẫn báo \texttt{Status:\ HEALTHY} khi có 2 block
+under-replicated (Hình~\ref{fig:l01-underrep}). HEALTHY nghĩa là mọi
+block còn ít nhất
+\texttt{dfs.}\allowbreak{}\texttt{namenode.}\allowbreak{}\texttt{replication.}\allowbreak{}\texttt{min}\allowbreak{}
+(= 1) replica sống, nên dữ liệu vẫn đọc được, và md5 trùng khớp ở
+Mục~\ref{sec:l01-results} xác nhận điều này. Under-replication chỉ làm
+giảm độ dư thừa: hỏng thêm một node thì các block này còn một bản. Lỗi
+thật là MISSING hoặc CORRUPT, khi block không còn replica hợp lệ nào.
+Nếu replica duy nhất của
+\texttt{/}\allowbreak{}\texttt{tmp/}\allowbreak{}\texttt{one\_}\allowbreak{}\texttt{replica.}\allowbreak{}\texttt{csv}\allowbreak{}
+nằm trên datanode3 thì tệp này đã bị báo MISSING; trong thực nghiệm nó
+may mắn nằm trên datanode1.
+
+\subsection{\texorpdfstring{Nếu giữ
+\texttt{recheck-interval}\allowbreak{} mặc định 5 phút thì sao, và vì
+sao timeout dài lại
+tốt?}{Nếu giữ recheck-interval mặc định 5 phút thì sao, và vì sao timeout dài lại tốt?}}\label{sec:l01-q6}
+
+Node sẽ bị tuyên bố chết sau \(2 \times 5\) phút \(+ 10 \times 3\) s
+\(= 10.5\) phút thay vì 90 s như Bảng~\ref{tbl:l01-timeline}. Trong môi
+trường thật, timeout dài tránh được \emph{replication storm} (bão tái
+nhân bản). Một node khởi động lại để vá lỗi hoặc mất mạng một phút cũng
+có thể kéo theo việc sao chép hàng terabyte block, và khi node quay lại
+thì các bản sao đó thành thừa. Băng thông và I/O đĩa bị tiêu tốn đúng
+lúc cluster đang không ổn định. Hai ngưỡng phục vụ hai việc khác nhau.
+Ngưỡng stale ngắn (mặc định 30 s, trong lab 15 s) giúp client tránh node
+có dấu hiệu bất thường gần như ngay. Ngưỡng dead dài chỉ quyết định lúc
+bắt đầu tái nhân bản, việc tốn kém nhất. Ngoài ra còn độ trễ tối đa một
+chu kỳ recheck-interval trước khi replica bị gỡ khỏi block map, như 4 s
+đo được ở Bảng~\ref{tbl:l01-timeline}.
+
+\subsection{Vì sao NameNode khởi động trong safe mode và phải chặn
+ghi?}\label{sec:l01-q7}
+
+Lúc khởi động, NameNode biết namespace nhưng chưa biết block nằm ở đâu
+(Mục~\ref{sec:l01-q3}). Khi chưa đủ 99.9 \% block được báo cáo, nó không
+phân biệt được block thật sự mất với block chỉ chưa kịp báo. Nếu cho
+ghi, xóa hay tái nhân bản lúc này, NameNode có thể lên lịch sao chép
+hàng loạt block chưa được báo cáo hoặc xóa nhầm replica tưởng là thừa.
+Safe mode giữ hệ thống ở chế độ chỉ đọc cho tới khi block map đáng tin,
+đúng như Hình~\ref{fig:l01-safemode}: ghi bị từ chối, đọc vẫn chạy,
+trạng thái tự chuyển từ ON sang OFF sau khi khởi động lại.
+
+\subsection{Vì sao 1 triệu tệp 1 KB là vấn đề, còn 1 tệp 1 KB thì
+không?}\label{sec:l01-q8}
+
+Mỗi tệp, thư mục và block là một đối tượng trong heap NameNode, khoảng
+150 byte mỗi đối tượng {[}5{]}. Một triệu tệp nhỏ tạo ít nhất 2 triệu
+đối tượng (một inode và một block mỗi tệp), xấp xỉ 300 MB heap cho
+khoảng 1 GB dữ liệu. Khi ghi còn có 1 triệu lời gọi RPC tới NameNode, và
+khi xử lý bằng MapReduce thì có 1 triệu map task vì mỗi tệp tạo ít nhất
+một split. Đây là \emph{small files problem}. Trong thực nghiệm, tệp
+12,331 byte vẫn chiếm riêng một block ID và một replica trên mỗi
+DataNode (Bảng~\ref{tbl:l01-physical}). Cách xử lý thường dùng là gộp
+tệp nhỏ thành tệp lớn hoặc dùng định dạng chứa như Parquet/ORC,
+SequenceFile, HAR.
+
+\subsection{Hạn chế của thực
+nghiệm}\label{hux1ea1n-chux1ebf-cux1ee7a-thux1ef1c-nghiux1ec7m}
+
+Cluster chạy trên một máy với một rack, nên chính sách đặt replica theo
+rack chưa được kiểm chứng. Các tham số
+\texttt{recheck-interval}\allowbreak{},
+\texttt{stale.}\allowbreak{}\texttt{datanode.}\allowbreak{}\texttt{interval}\allowbreak{}
+và \texttt{safemode.}\allowbreak{}\texttt{extension}\allowbreak{} đã bị
+rút ngắn, nên thời gian đo không phản ánh môi trường sản xuất. Vòng thăm
+dò \texttt{sleep\ 5} cộng thời gian chạy
+\texttt{dfsadmin\ -report}\allowbreak{} cho chu kỳ khoảng 8 s, vì vậy
+thời điểm tái nhân bản xong chỉ xác định được trong khoảng t+94 s đến
+t+98 s. Dữ liệu chỉ khoảng 48 MB, chưa đủ để đánh giá chi phí mạng của
+tái nhân bản ở quy mô lớn.
+
+\section{Kết luận}\label{sec:l01-conclusion}
+
+Block size là giới hạn trên: tệp 49,961,641 byte thành 1 hoặc 3 block
+tùy tham số phía client, block cuối không bị đệm. Dung lượng thô tỉ lệ
+với hệ số nhân bản (Bảng~\ref{tbl:l01-du}). Thời gian phát hiện node
+chết đúng bằng \(2 \times \text{recheck} + 10 \times \text{heartbeat}\),
+và NameNode tự tái nhân bản khi còn node hợp lệ. Block không phục hồi
+được vẫn HEALTHY và đọc được. Vị trí block chỉ nằm trong bộ nhớ
+NameNode, nên cần safe mode khi khởi động.
+
+Từ kết quả này, chúng tôi rút ra rằng dữ liệu quan trọng nên giữ hệ số
+ít nhất 3 trên cluster có nhiều DataNode hơn hệ số đó thì mới tự phục
+hồi được khi một node hỏng. Hệ số 1 chỉ nên dùng cho dữ liệu tạm có thể
+tạo lại. Nên giữ timeout phát hiện node chết dài như mặc định và tránh
+lưu nhiều tệp nhỏ. Hướng làm tiếp có thể là thử \emph{erasure coding}
+(ví dụ chính sách \texttt{XOR-2-1-1024k}) để so chi phí lưu trữ với nhân
+bản ba lần, so sánh decommission có kiểm soát với sự cố đột ngột, chạy
+balancer sau khi thêm DataNode thứ tư, hoặc cố ý làm hỏng một tệp block
+để xem cơ chế phát hiện lỗi checksum.
+
+\section*{Tài liệu tham khảo}\label{tuxe0i-liux1ec7u-tham-khux1ea3o}
+\addcontentsline{toc}{section}{Tài liệu tham khảo}
+
+{[}1{]} S. Ghemawat, H. Gobioff, and S.-T. Leung, ``The Google File
+System,'' in \emph{Proc. 19th ACM Symposium on Operating Systems
+Principles (SOSP)}, 2003, pp.~29--43.
+
+{[}2{]} K. Shvachko, H. Kuang, S. Radia, and R. Chansler, ``The Hadoop
+Distributed File System,'' in \emph{Proc. IEEE 26th Symposium on Mass
+Storage Systems and Technologies (MSST)}, 2010, pp.~1--10.
+
+{[}3{]} Apache Software Foundation, ``HDFS Architecture,'' Apache Hadoop
+3.4 Documentation.
+https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html
+
+{[}4{]} Apache Software Foundation, ``HDFS Commands Guide,'' Apache
+Hadoop 3.4 Documentation.
+https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HDFSCommands.html
+
+{[}5{]} T. White, \emph{Hadoop: The Definitive Guide}, 4th
+ed.~Sebastopol, CA, USA: O'Reilly Media, 2015.
+
+{[}6{]} M. Kleppmann, \emph{Designing Data-Intensive Applications}.
+Sebastopol, CA, USA: O'Reilly Media, 2017.
+
+{[}7{]} Apache Software Foundation, ``hdfs-default.xml,'' Apache Hadoop
+3.4 Documentation.
+https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml
+
+\section*{Phụ lục A: Danh mục tệp nộp
+kèm}\label{phux1ee5-lux1ee5c-a-danh-mux1ee5c-tux1ec7p-nux1ed9p-kuxe8m}
+\addcontentsline{toc}{section}{Phụ lục A: Danh mục tệp nộp kèm}
+
+Các tệp log và ảnh nộp kèm được liệt kê ở Bảng~\ref{tbl:l01-files}.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\caption{\label{tbl:l01-files}Danh mục tệp log và ảnh nộp kèm báo
+cáo.}\tabularnewline
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Tệp
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Nội dung
+\end{minipage} \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Tệp
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Nội dung
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{01\_}\allowbreak{}\texttt{shell\_}\allowbreak{}\texttt{blocks.}\allowbreak{}\texttt{txt}\allowbreak{}
+& \texttt{dfsadmin\ -report}\allowbreak{}, lệnh \texttt{hdfs\ dfs},
+\texttt{hdfs\ dfs\ -stat}, \texttt{fsck} block 128 MB/16 MB, tệp block
+trên datanode1 \\
+\texttt{02\_setrep.txt} & \texttt{fsck} tệp 16 MB khi đã ổn định,
+\texttt{setrep\ -w\ 2}, \texttt{du\ -h}, ghi tệp hệ số 1 \\
+\texttt{03\_}\allowbreak{}\texttt{fsck\_}\allowbreak{}\texttt{small\_}\allowbreak{}\texttt{blocks\_}\allowbreak{}\texttt{BEFORE\_}\allowbreak{}\texttt{kill.}\allowbreak{}\texttt{txt}\allowbreak{}
+& \texttt{fsck} tệp 16 MB (hệ số 2) trước khi dừng datanode3 \\
+\texttt{04\_}\allowbreak{}\texttt{kill\_}\allowbreak{}\texttt{datanode\_}\allowbreak{}\texttt{timeline.}\allowbreak{}\texttt{txt}\allowbreak{}
+& Dòng thời gian thăm dò sau khi dừng datanode3, log
+\texttt{removeDeadDatanode}\allowbreak{} \\
+\texttt{05\_}\allowbreak{}\texttt{fsck\_}\allowbreak{}\texttt{small\_}\allowbreak{}\texttt{blocks\_}\allowbreak{}\texttt{AFTER\_}\allowbreak{}\texttt{kill.}\allowbreak{}\texttt{txt}\allowbreak{}
+& \texttt{fsck} tệp 16 MB sau khi tái nhân bản \\
+\texttt{06\_}\allowbreak{}\texttt{after\_}\allowbreak{}\texttt{kill\_}\allowbreak{}\texttt{misc.}\allowbreak{}\texttt{txt}\allowbreak{}
+& \texttt{fsck\ /data} khi under-replicated, md5 của tệp tải về và bản
+gốc \\
+\texttt{07\_}\allowbreak{}\texttt{datanode\_}\allowbreak{}\texttt{back.}\allowbreak{}\texttt{txt}\allowbreak{}
+& Trạng thái sau khi datanode3 khởi động lại \\
+\texttt{08\_}\allowbreak{}\texttt{safemode\_}\allowbreak{}\texttt{fsimage.}\allowbreak{}\texttt{txt}\allowbreak{}
+& Safe mode thủ công và tự động, \texttt{saveNamespace}, phân tích
+fsimage \\
+\texttt{img/01}--\texttt{img/10} & Ảnh chụp terminal của các bước 1 đến
+7 \\
+\texttt{img/11}--\texttt{img/15} & Ảnh chụp giao diện web NameNode (khỏe
+mạnh, duyệt thư mục, datanode3 chết) \\
+\end{longtable}
+
+\section*{Phụ lục B: Trích đoạn mã
+nguồn}\label{phux1ee5-lux1ee5c-b-truxedch-ux111oux1ea1n-muxe3-nguux1ed3n}
+\addcontentsline{toc}{section}{Phụ lục B: Trích đoạn mã nguồn}
+
+In tên, block size, hệ số nhân bản và kích thước của
+\texttt{taxi\_}\allowbreak{}\texttt{zone\_}\allowbreak{}\texttt{lookup.}\allowbreak{}\texttt{csv}\allowbreak{}
+(phần 2 của bài, ghi trong
+\texttt{01\_}\allowbreak{}\texttt{shell\_}\allowbreak{}\texttt{blocks.}\allowbreak{}\texttt{txt}\allowbreak{}):
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -184,190 +1215,31 @@ shell}{1--2. Khởi động cluster và hdfs dfs shell}}\label{khux1edfi-ux111ux
 \end{Highlighting}
 \end{Shaded}
 
-\subsection{3. Block mặc định (128 MB) và block 16
-MB}\label{block-mux1eb7c-ux111ux1ecbnh-128-mb-vuxe0-block-16-mb}
-
-\begin{longtable}[]{@{}lll@{}}
-\toprule\noalign{}
-Upload & Số block & Kích thước block \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-mặc định 128 MB & 1 & 49,961,641 \\
-\texttt{-D\ dfs.blocksize=16m} & 3 & 16,777,216 + 16,777,216 +
-16,407,209 \\
-\end{longtable}
-
-\begin{figure}
-\centering
-\pandocbounded{\includegraphics[keepaspectratio]{img/02_blocks_128m_vs_16m.png}}
-\caption{fsck 128m vs 16m}
-\end{figure}
-
-Các file block vật lý trên datanode1
-(\texttt{blk\_\textless{}id\textgreater{}} +
-\texttt{blk\_\textless{}id\textgreater{}\_\textless{}genstamp\textgreater{}.meta});
-block cuối chỉ 16,407,209 byte, không bị pad lên 16 MB:
-
-\begin{figure}
-\centering
-\pandocbounded{\includegraphics[keepaspectratio]{img/03_physical_block_files_datanode1.png}}
-\caption{block files}
-\end{figure}
-
-\subsection{4. Replication factor}\label{replication-factor}
-
-\texttt{setrep\ -w\ 2} → \texttt{Live\_repl=2} cho cả 3 block; dung
-lượng raw của \texttt{small\_blocks} giảm từ 142.9 M xuống \textbf{95.3
-M}.
-
-\textbf{TODO 4.1}
+Ghi tệp với hệ số 1 trong một lệnh, không dùng \texttt{setrep} (phần 4,
+ghi trong \texttt{02\_setrep.txt}). \texttt{dfs.replication} là tham số
+phía client nên ghi đè được bằng \texttt{-D}:
 
 \begin{Shaded}
 \begin{Highlighting}[]
 \ExtensionTok{hdfs}\NormalTok{ dfs }\AttributeTok{{-}D}\NormalTok{ dfs.replication=1 }\AttributeTok{{-}put}\NormalTok{ /datasets/data/taxi/taxi\_zone\_lookup.csv /tmp/one\_replica.csv}
-\CommentTok{\# one\_replica.csv repl=1   (replica duy nhất nằm trên 172.29.0.5 = datanode1)}
+\CommentTok{\# one\_replica.csv repl=1   (replica duy nhất trên 172.29.0.5 = datanode1)}
 \end{Highlighting}
 \end{Shaded}
 
-\begin{figure}
-\centering
-\pandocbounded{\includegraphics[keepaspectratio]{img/04_setrep2_and_todo4.1.png}}
-\caption{setrep}
-\end{figure}
+Các lệnh chính của thí nghiệm block và sự cố DataNode:
 
-\subsection{5. Tắt DataNode → under-replication →
-re-replication}\label{tux1eaft-datanode-under-replication-re-replication}
+\begin{Shaded}
+\begin{Highlighting}[]
+\ExtensionTok{hdfs}\NormalTok{ dfs }\AttributeTok{{-}D}\NormalTok{ dfs.blocksize=16m }\AttributeTok{{-}put}\NormalTok{ /datasets/data/taxi/yellow\_tripdata\_2024{-}01.parquet }\DataTypeTok{\textbackslash{}}
+\NormalTok{    /data/taxi/small\_blocks/}
+\ExtensionTok{hdfs}\NormalTok{ fsck /data/taxi/small\_blocks }\AttributeTok{{-}files} \AttributeTok{{-}blocks} \AttributeTok{{-}locations}
+\ExtensionTok{hdfs}\NormalTok{ dfs }\AttributeTok{{-}setrep} \AttributeTok{{-}w}\NormalTok{ 2 /data/taxi/small\_blocks/yellow\_tripdata\_2024{-}01.parquet}
+\ExtensionTok{docker}\NormalTok{ compose stop datanode3          }\CommentTok{\# chạy trên máy host}
+\ControlFlowTok{while} \FunctionTok{true}\KeywordTok{;} \ControlFlowTok{do} \ExtensionTok{hdfs}\NormalTok{ dfsadmin }\AttributeTok{{-}report} \KeywordTok{|} \FunctionTok{grep} \AttributeTok{{-}E} \StringTok{"Live|Dead|Under"}\KeywordTok{;} \FunctionTok{sleep}\NormalTok{ 5}\KeywordTok{;} \ControlFlowTok{done}
+\ExtensionTok{hdfs}\NormalTok{ dfs }\AttributeTok{{-}get}\NormalTok{ /data/taxi/default\_blocks/yellow\_tripdata\_2024{-}01.parquet /tmp/check.parquet}
+\FunctionTok{md5sum}\NormalTok{ /tmp/check.parquet /datasets/data/taxi/yellow\_tripdata\_2024{-}01.parquet}
+\end{Highlighting}
+\end{Shaded}
 
-Tắt \textbf{datanode3} (đang giữ replica của cả 3 block của file
-\texttt{small\_blocks}).
-
-\textbf{(a) \texttt{fsck} của file block 16 MB TRƯỚC khi tắt} (replica
-nằm trên \texttt{.5} datanode1 và \texttt{.3} datanode3):
-
-\begin{figure}
-\centering
-\pandocbounded{\includegraphics[keepaspectratio]{img/05_fsck_small_blocks_BEFORE_kill.png}}
-\caption{before}
-\end{figure}
-
-\textbf{(b) Thời gian đến khi node bị coi là chết:} \textbf{90 s}
-(\texttt{Dead\ datanodes\ (1)} lúc t+90 s). Lúc t+94 s (10:17:40)
-NameNode log
-\texttt{removeDeadDatanode:\ lost\ heartbeat\ from\ 172.29.0.3}; từ lần
-poll t+98 s trở đi \texttt{Under\ replicated\ blocks:\ 2}. Con số 90 s
-khớp với lý thuyết 2 × recheck-interval (30 s) + 10 × heartbeat (3 s).
-
-\pandocbounded{\includegraphics[keepaspectratio]{img/06_kill_datanode3_timeline.png}}
-\pandocbounded{\includegraphics[keepaspectratio]{img/14_ui_overview_datanode3_DEAD.png}}
-\pandocbounded{\includegraphics[keepaspectratio]{img/15_ui_datanodes_datanode3_DEAD.png}}
-
-\textbf{(c) \texttt{fsck} của file block 16 MB SAU khi tắt:} cả 3 block
-vẫn \texttt{Live\_repl=2}, nhưng replica trên \texttt{.3} đã được
-\textbf{chép lại sang \texttt{.2} (datanode2)} → file trở lại
-\texttt{OK}.
-
-\begin{figure}
-\centering
-\pandocbounded{\includegraphics[keepaspectratio]{img/07_fsck_small_blocks_AFTER_kill.png}}
-\caption{after}
-\end{figure}
-
-Hai file replication 3 (\texttt{default\_blocks/...parquet},
-\texttt{taxi\_zone\_lookup.csv}) vẫn \textbf{under-replicated} (2 block,
-40 \%) nhưng \texttt{Status:\ HEALTHY}; md5 của file tải về trùng với
-bản gốc → không mất dữ liệu. (\texttt{/tmp/one\_replica.csv} nằm trên
-datanode1 nên không bị MISSING.)
-
-\begin{figure}
-\centering
-\pandocbounded{\includegraphics[keepaspectratio]{img/08_fsck_data_underreplicated_md5.png}}
-\caption{under-replicated + md5}
-\end{figure}
-
-Bật lại datanode3 → \texttt{Under-replicated\ 0},
-\texttt{Over-replicated\ 0} (replica thừa đã bị xoá):
-
-\begin{figure}
-\centering
-\pandocbounded{\includegraphics[keepaspectratio]{img/09_datanode3_back.png}}
-\caption{back}
-\end{figure}
-
-\subsection{6--7. Safe mode và fsimage}\label{safe-mode-vuxe0-fsimage}
-
-\begin{figure}
-\centering
-\pandocbounded{\includegraphics[keepaspectratio]{img/10_safemode_fsimage.png}}
-\caption{safemode}
-\end{figure}
-
-Trong safe mode lệnh ghi bị từ chối
-(\texttt{Name\ node\ is\ in\ safe\ mode}), lệnh đọc vẫn chạy. Sau
-\texttt{restart\ namenode} safe mode tự bật vài giây. fsimage
-(\texttt{hdfs\ oiv}) chứa tên file/thư mục và block ID nhưng
-\textbf{không có vị trí block} (grep thông tin DataNode/port 9866 trả về
-0 dòng).
-
-\subsection{Trả lời checkpoint}\label{trux1ea3-lux1eddi-checkpoint}
-
-\textbf{Q1. File 300 MB, block mặc định, replication 3?} ⌈300/128⌉ =
-\textbf{3 block} (128 + 128 + 44 MB) → \textbf{9 block replica} →
-\textasciitilde{}\textbf{900 MB} đĩa raw (cộng thêm file \texttt{.meta}
-checksum rất nhỏ). NameNode chỉ giữ 3 đối tượng block trong RAM, không
-phụ thuộc replication.
-
-\textbf{Q2. Vì sao block cuối nhỏ hơn 16 MB, có lãng phí 16 MB không?}
-File kết thúc ở đó: 49,961,641 − 2 × 16,777,216 = 16,407,209 byte. Block
-size chỉ là kích thước \textbf{tối đa}; file block trên DataNode đúng
-bằng lượng dữ liệu thực (thấy rõ ở ảnh 03), nên không lãng phí đĩa.
-
-\textbf{Q3. Danh sách vị trí block được lưu ở đâu? Restart NameNode thì
-sao?} Chỉ nằm trong \textbf{RAM của NameNode}, không có trong fsimage
-hay edit log (ảnh 10). Khi restart, NameNode dựng lại block map từ
-\textbf{block report} của các DataNode, vì thế nó phải nằm trong safe
-mode đến khi nhận đủ report.
-
-\textbf{Q4. Vì sao file replication 2 được chữa còn file replication 3
-thì không?} Re-replication cần một DataNode \textbf{chưa có} replica của
-block đó. Khi chỉ còn 2 node sống: block rep-2 mất một bản trên
-datanode3 → chép được sang datanode2 (node còn trống). Block rep-3 thì
-đã có bản trên \textbf{cả hai} node còn lại, không còn node thứ ba để
-đặt bản sao, và HDFS không bao giờ đặt 2 replica của cùng một block trên
-một DataNode. Vì vậy nó vẫn under-replicated cho đến khi datanode3 quay
-lại.
-
-\textbf{Q5. \texttt{fsck} báo gì khi under-replicated, vì sao không phải
-lỗi?} \texttt{Status:\ HEALTHY} kèm
-\texttt{Under-replicated\ blocks:\ 2\ (40.0\ \%)}. HEALTHY nghĩa là
-block nào cũng có ít nhất \texttt{dfs.namenode.replication.min} (=1)
-replica sống, nên toàn bộ dữ liệu vẫn đọc được (md5 khớp).
-Under-replication chỉ là \textbf{rủi ro} (giảm độ dư thừa); lỗi thật là
-MISSING/CORRUPT.
-
-\textbf{Q6. Với \texttt{recheck-interval} mặc định (5 phút) thì sao? Vì
-sao timeout dài là mặc định tốt?} Node bị coi là chết sau 2 × 5 phút +
-10 × 3 s = \textbf{10.5 phút} (lab: 90 s). Timeout dài tránh
-\textbf{replication storm}: một node reboot hay chập mạng ngắn sẽ khiến
-cluster chép hàng TB block, rồi các bản đó lại thành thừa khi node quay
-lại sau một phút, tốn băng thông và I/O. Trong lúc chờ, client vẫn tránh
-các node \emph{stale} (30 s không có heartbeat) khi đọc/ghi.
-
-\textbf{Q7. Vì sao NameNode khởi động trong safe mode, vì sao phải chặn
-ghi?} Lúc khởi động NameNode biết namespace (fsimage + edits) nhưng chưa
-biết block nằm ở đâu. Trước khi ≥ 99.9 \% block được báo cáo, nó không
-phân biệt được block ``bị mất'' với block ``chưa báo cáo''. Nếu cho phép
-ghi/xoá hoặc bắt đầu re-replication thì nó sẽ quyết định sai, ví dụ lên
-lịch chép hàng loạt các block chỉ đơn giản là chưa được báo cáo. Safe
-mode = chỉ đọc cho tới khi block map đáng tin cậy.
-
-\textbf{Q8. 1 file 1 KB và 1 triệu file 1 KB: vì sao trường hợp sau là
-vấn đề?} Mỗi file, thư mục và block là một object trong heap NameNode
-(\textasciitilde150 B). 1 triệu file nhỏ = ≥ 2 triệu object ≈ 300 MB
-heap cho vỏn vẹn 1 GB dữ liệu, cộng thêm 1 triệu RPC và sau này 1 triệu
-map task (mỗi file một split). Đây là \textbf{small files problem}. Cách
-xử lý: gộp file, dùng định dạng container (Parquet/ORC, SequenceFile,
-HAR).
 
 \end{document}

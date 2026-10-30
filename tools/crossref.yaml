@@ -1,0 +1,13 @@
+figureTitle: "Hình"
+tableTitle: "Bảng"
+listingTitle: "Mã nguồn"
+figPrefix: "Hình"
+tblPrefix: "Bảng"
+secPrefix: "Mục"
+lstPrefix: "Mã nguồn"
+eqnPrefix: "Công thức"
+lofTitle: "Danh mục hình"
+lotTitle: "Danh mục bảng"
+linkReferences: true
+nameInLink: true
+titleDelim: "."

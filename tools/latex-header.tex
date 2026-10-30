@@ -3,6 +3,28 @@
 \fvset{breaklines,breakanywhere}
 \usepackage{float}
 \floatplacement{figure}{H}
-\renewcommand{\figurename}{Hình}
-\renewcommand{\tablename}{Bảng}
-\renewcommand{\contentsname}{Mục lục}
+\usepackage[font=small,labelfont=bf,labelsep=period]{caption}
+\usepackage{setspace}
+\setstretch{1.2}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\nouppercase{\leftmark}}
+\fancyhead[R]{\small Báo cáo thực hành Data Engineering}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\AtBeginDocument{%
+  \renewcommand{\figurename}{Hình}%
+  \renewcommand{\tablename}{Bảng}%
+  \renewcommand{\contentsname}{Mục lục}%
+  \renewcommand{\listfigurename}{Danh mục hình}%
+  \renewcommand{\listtablename}{Danh mục bảng}%
+  \providecommand{\chaptername}{}\renewcommand{\chaptername}{Chương}%
+}
+% Symbols missing from Times New Roman: typeset them in math mode instead.
+\begingroup
+\catcode`⌈=\active \catcode`⌉=\active \catcode`≫=\active \catcode`≪=\active
+\protected\gdef⌈{\ensuremath{\lceil}}\protected\gdef⌉{\ensuremath{\rceil}}
+\protected\gdef≫{\ensuremath{\gg}}\protected\gdef≪{\ensuremath{\ll}}
+\endgroup
+\AtBeginDocument{\catcode`⌈=\active \catcode`⌉=\active \catcode`≫=\active \catcode`≪=\active}

@@ -29,7 +29,7 @@ while i < len(lines):
         continue
     out.append(ln)
     i += 1
-text = "\n".join(out).replace("≫", r"$\gg$") + "\n"  # DejaVu Serif Bold lacks U+226B
+text = "\n".join(out) + "\n"
 if prefix:
     text = re.sub(r"\]\((img/|[^)/]+\.(?:md|txt|csv|py|sh|sql)\))", lambda m: "](" + prefix + "/" + m.group(1), text)
 open(dst, "w", encoding="utf-8").write(text)

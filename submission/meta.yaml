@@ -1,0 +1,10 @@
+# Thông tin trang bìa — sửa các dòng "……" rồi chạy lại: bash tools/build_latex.sh
+truong: "TRƯỜNG ĐẠI HỌC ……"
+khoa: "KHOA ……"
+mon: "Kỹ thuật dữ liệu (Data Engineering)"
+gvhd: "……"
+sinhvien: "Trương Minh Tiến"
+mssv: "……"
+lop: "……"
+noi: "……"
+ngay: "Tháng 10 năm 2026"
