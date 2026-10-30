@@ -1,0 +1,38 @@
+WARNING: Using incubator modules: jdk.incubator.vector
+naive partitions: 1
+[time] naive count: 1.17 s
+order_seq bounds: 1 .. 5003
+parallel partitions: 4
+[time] parallel count: 0.22 s
++---------+-----+
+|partition|count|
++---------+-----+
+|        0| 1251|
+|        1| 1250|
+|        2| 1250|
+|        3| 1252|
++---------+-----+
+
+rows per partition when splitting on order_purchase_timestamp (volume grows over time):
++---------+-----+
+|partition|count|
++---------+-----+
+|        0|  782|
+|        1| 1116|
+|        2| 1419|
+|        3| 1686|
++---------+-----+
+
+[time] write parquet: 3.10 s
+rows written: 5003 | months: 21
+== Physical Plan ==
+*(1) ColumnarToRow
++- FileScan parquet [order_id#108,customer_id#109,order_status#110,order_purchase_timestamp#111,order_approved_at#112,order_delivered_carrier_date#113,order_delivered_customer_date#114,order_estimated_delivery_date#115,order_seq#116L,updated_at#117,purchase_month#118] Batched: true, DataFilters: [], Format: Parquet, Location: InMemoryFileIndex(1 paths)[hdfs://namenode:8020/data/olist/spark/orders], PartitionFilters: [isnotnull(purchase_month#118), (purchase_month#118 = 2018-08)], PushedFilters: [], ReadSchema: struct<order_id:string,customer_id:string,order_status:string,order_purchase_timestamp:timestamp,...
+
+
+customers: 5003 rows
+order_items: 5852 rows
+order_payments: 5472 rows
+products: 1500 rows
+sellers: 312 rows
+WALL spark-submit --step full (incl. JVM start): 21.2 s

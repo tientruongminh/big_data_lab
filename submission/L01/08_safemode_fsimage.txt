@@ -1,0 +1,32 @@
+### 6. safe mode manual
+Safe mode is OFF
+Safe mode is ON
+put: Cannot create file/tmp/x.csv._COPYING_. Name node is in safe mode.
+Found 3 items
+drwxr-xr-x   - root supergroup          0 2026-10-30 10:15 /data/taxi/default_blocks
+drwxr-xr-x   - root supergroup          0 2026-10-30 10:15 /data/taxi/small_blocks
+Safe mode is OFF
+### automatic safe mode at restart
+Safe mode is ON
+Safe mode is OFF
+### 7. fsimage
+Safe mode is ON
+Save namespace successful
+Safe mode is OFF
+-rw-r--r-- 1 root root    1574 Oct 30 10:19 fsimage_0000000000000000059
+-rw-r--r-- 1 root root      62 Oct 30 10:19 fsimage_0000000000000000059.md5
+-rw-r--r-- 1 root root       3 Oct 30 10:19 seen_txid
+-rw-r--r-- 1 root root     189 Oct 30 10:19 VERSION
+<name></name>
+<name>tmp</name>
+<name>hadoop-yarn</name>
+<name>staging</name>
+<name>mr-history</name>
+<name>user</name>
+<name>root</name>
+<name>done</name>
+<name>tmp</name>
+<name>data</name>
+<name>taxi</name>
+<name>taxi_zone_lookup.csv</name>
+block location info in fsimage? 0

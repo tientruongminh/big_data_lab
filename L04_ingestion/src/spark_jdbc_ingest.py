@@ -52,7 +52,8 @@ def step_full(spark):
     # TODO 1: read "orders" in 4 parallel partitions split on order_seq.
     #         Use the options partitionColumn, lowerBound, upperBound (from b.lo / b.hi, as strings),
     #         numPartitions and fetchsize="1000".
-    orders = jdbc(spark, dbtable="orders")
+    orders = jdbc(spark, dbtable="orders", partitionColumn="order_seq",
+                  lowerBound=str(b.lo), upperBound=str(b.hi), numPartitions="4", fetchsize="1000")
     print("parallel partitions:", orders.rdd.getNumPartitions())
     timed("parallel count", orders.count)
     orders.groupBy(F.spark_partition_id().alias("partition")).count().orderBy("partition").show()
@@ -60,14 +61,17 @@ def step_full(spark):
     # (4) same with a timestamp partition column (also allowed: numeric, date, timestamp)
     # TODO 2: same read, but split on the timestamp column order_purchase_timestamp,
     #         lowerBound "2017-01-01 00:00:00", upperBound "2018-09-01 00:00:00", 4 partitions.
-    by_ts = jdbc(spark, dbtable="orders")
+    by_ts = jdbc(spark, dbtable="orders", partitionColumn="order_purchase_timestamp",
+                 lowerBound="2017-01-01 00:00:00", upperBound="2018-09-01 00:00:00", numPartitions="4")
     print("rows per partition when splitting on order_purchase_timestamp (volume grows over time):")
     by_ts.groupBy(F.spark_partition_id().alias("partition")).count().orderBy("partition").show()
 
     # (5) write Parquet, partitioned by purchase month (Hive-style directories)
     # TODO 3: add a column purchase_month = 'yyyy-MM' of order_purchase_timestamp and write the
     #         DataFrame as Parquet to f"{BASE}/orders", partitioned by purchase_month, mode overwrite.
-    out = orders
+    out = orders.withColumn("purchase_month", F.date_format("order_purchase_timestamp", "yyyy-MM"))
+    timed("write parquet", lambda: out.write.mode("overwrite").partitionBy("purchase_month")
+          .parquet(f"{BASE}/orders"))
     back = spark.read.parquet(f"{BASE}/orders")
     print("rows written:", back.count(), "| months:", back.select("purchase_month").distinct().count())
     back.filter("purchase_month = '2018-08'").explain()   # look for PartitionFilters
@@ -101,7 +105,9 @@ def step_incremental(spark):
     # TODO 4: read ONLY the rows with  wm_old < updated_at <= wm_new.
     #         Hint: dbtable accepts a sub-query with an alias: "(SELECT ... WHERE ...) AS changed_orders"
     #         Then add a column _ingested_at = wm_new cast to timestamp.
-    changes = jdbc(spark, dbtable="orders").withColumn("_ingested_at", F.lit(wm_new).cast("timestamp"))
+    changed_sql = (f"(SELECT * FROM orders WHERE updated_at > timestamp '{wm_old}'"
+                   f" AND updated_at <= timestamp '{wm_new}') AS changed_orders")
+    changes = jdbc(spark, dbtable=changed_sql).withColumn("_ingested_at", F.lit(wm_new).cast("timestamp"))
     changes = changes.cache()
     n = changes.count()
     print(f"changed rows since last run: {n}")
@@ -114,7 +120,8 @@ def step_incremental(spark):
     log = spark.read.parquet(f"{BASE}/orders_changes")
     # TODO 5: keep only the LATEST version of every order_id (row_number over a window partitioned by
     #         order_id, ordered by updated_at desc, _ingested_at desc; keep row 1).
-    current = log
+    w = Window.partitionBy("order_id").orderBy(F.col("updated_at").desc(), F.col("_ingested_at").desc())
+    current = log.withColumn("_rn", F.row_number().over(w)).filter("_rn = 1").drop("_rn")
     current.write.mode("overwrite").parquet(f"{BASE}/orders_current")
     print("change-log rows:", log.count(), "| current snapshot rows:", spark.read.parquet(f"{BASE}/orders_current").count())
 

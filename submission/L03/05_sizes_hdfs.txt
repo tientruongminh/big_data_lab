@@ -1,0 +1,21 @@
+$ hdfs dfs -du -h /data/taxi_csv /user/hive/warehouse/taxi.db
+261.5 M  261.5 M  /data/taxi_csv/yellow_2024-01.csv
+50.2 M   50.2 M   /user/hive/warehouse/taxi.db/trips_orc
+62.3 M   62.3 M   /user/hive/warehouse/taxi.db/trips_parquet
+
+$ hdfs dfs -du -h -s (per table)
+274217811  274217811  /data/taxi_csv
+52629674   52629674   /user/hive/warehouse/taxi.db/trips_orc
+65305645   65305645   /user/hive/warehouse/taxi.db/trips_parquet
+
+$ hdfs dfs -ls -R /user/hive/warehouse/taxi.db/trips_orc
+drwxr-xr-x   - hive supergroup          0 2026-10-30 10:32 /user/hive/warehouse/taxi.db/trips_orc/pickup_month=2002-12
+-rw-r--r--   1 hive supergroup       1637 2026-10-30 10:32 /user/hive/warehouse/taxi.db/trips_orc/pickup_month=2002-12/000007_0
+drwxr-xr-x   - hive supergroup          0 2026-10-30 10:32 /user/hive/warehouse/taxi.db/trips_orc/pickup_month=2009-01
+-rw-r--r--   1 hive supergroup       1922 2026-10-30 10:32 /user/hive/warehouse/taxi.db/trips_orc/pickup_month=2009-01/000004_0
+drwxr-xr-x   - hive supergroup          0 2026-10-30 10:32 /user/hive/warehouse/taxi.db/trips_orc/pickup_month=2023-12
+-rw-r--r--   1 hive supergroup       2234 2026-10-30 10:32 /user/hive/warehouse/taxi.db/trips_orc/pickup_month=2023-12/000001_0
+drwxr-xr-x   - hive supergroup          0 2026-10-30 10:32 /user/hive/warehouse/taxi.db/trips_orc/pickup_month=2024-01
+-rw-r--r--   1 hive supergroup   52621888 2026-10-30 10:32 /user/hive/warehouse/taxi.db/trips_orc/pickup_month=2024-01/000005_0
+drwxr-xr-x   - hive supergroup          0 2026-10-30 10:32 /user/hive/warehouse/taxi.db/trips_orc/pickup_month=2024-02
+-rw-r--r--   1 hive supergroup       1993 2026-10-30 10:32 /user/hive/warehouse/taxi.db/trips_orc/pickup_month=2024-02/000005_0

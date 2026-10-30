@@ -1,0 +1,37 @@
+== /tmp/nocombiner.log
+2026-10-30 10:25:37,187 INFO mapreduce.Job: Running job: job_1793355278127_0002
+2026-10-30 10:26:07,488 INFO mapreduce.Job: Job job_1793355278127_0002 completed successfully
+		Launched map tasks=6
+		Launched reduce tasks=2
+		Map output records=1000000
+		Map output materialized bytes=31039071
+		Combine input records=0
+		Combine output records=0
+		Reduce shuffle bytes=31039071
+		Reduce input records=1000000
+WALL nocombiner 30.3 s (10:25:37.187 Running job -> 10:26:07.488 completed)
+== /tmp/combiner.log
+2026-10-30 10:26:10,419 INFO mapreduce.Job: Running job: job_1793355278127_0003
+2026-10-30 10:26:43,754 INFO mapreduce.Job: Job job_1793355278127_0003 completed successfully
+		Launched map tasks=6
+		Launched reduce tasks=2
+		Map output records=1000000
+		Map output materialized bytes=41169
+		Combine input records=1000000
+		Combine output records=1382
+		Reduce shuffle bytes=41169
+		Reduce input records=1382
+WALL combiner 33.3 s (10:26:10.419 Running job -> 10:26:43.754 completed)
+$ bash top_zones.sh /user/root/zones_out_combiner
+Queens/JFK Airport	59777
+Manhattan/Midtown Center	48750
+Manhattan/Upper East Side South	47260
+Manhattan/Upper East Side North	45867
+Manhattan/Lincoln Square East	37424
+Manhattan/Penn Station/Madison Sq West	37342
+Manhattan/Midtown East	36421
+Manhattan/Times Sq/Theatre District	36291
+Queens/LaGuardia Airport	33240
+Manhattan/Upper West Side South	30849
+$ diff <(nocombiner output) <(combiner output)
+IDENTICAL results

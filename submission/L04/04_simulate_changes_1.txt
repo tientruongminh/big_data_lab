@@ -1,0 +1,12 @@
+$ psql -f sql/simulate_changes.sql   (#1, before Sqoop part 2)
+INSERT 0 3
+UPDATE 2
+ order_seq |             order_id             | order_status |         updated_at         
+-----------+----------------------------------+--------------+----------------------------
+      5001 | b66d7d8bbcad4568830448d9d663fac5 | created      | 2026-10-30 10:46:07.357187
+      5002 | 0c83fcfb71e8bc5b9e8b3a73f7140d4f | created      | 2026-10-30 10:46:07.357187
+      5003 | 7008b2a0e1ffae9397506c90fb4eab1b | created      | 2026-10-30 10:46:07.357187
+       139 | 8a7ac9a44f356814c2311987dcd8ad10 | delivered    | 2026-10-30 10:46:07.361794
+       278 | 65a11c7df0f6c77c1688232a1107044f | delivered    | 2026-10-30 10:46:07.361794
+(5 rows)
+

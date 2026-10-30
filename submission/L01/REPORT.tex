@@ -1,0 +1,373 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
+\documentclass[
+  11pt,
+]{article}
+\usepackage{xcolor}
+\usepackage[margin=2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+    \setmainfont[]{DejaVu Serif}
+    \setsansfont[]{DejaVu Sans}
+    \setmonofont[Scale=0.85]{Liberation Mono}
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\newenvironment{Shaded}{}{}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{1.00,0.00,0.00}{\textbf{#1}}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.49,0.56,0.16}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
+\newcommand{\BuiltInTok}[1]{\textcolor[rgb]{0.00,0.50,0.00}{#1}}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.53,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.56,0.13,0.00}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.73,0.13,0.13}{\textit{#1}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{1.00,0.00,0.00}{\textbf{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.02,0.16,0.49}{#1}}
+\newcommand{\ImportTok}[1]{\textcolor[rgb]{0.00,0.50,0.00}{\textbf{#1}}}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.40,0.40,0.40}{#1}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.74,0.48,0.00}{#1}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.73,0.40,0.53}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.10,0.09,0.49}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+\ifLuaTeX
+\usepackage[bidi=basic]{babel}
+\else
+\usepackage[bidi=default]{babel}
+\fi
+\babelprovide[main,import]{vietnamese}
+\ifPDFTeX
+\else
+\babelfont{rm}[]{DejaVu Serif}
+\fi
+% get rid of language-specific shorthands (see #6817):
+\let\LanguageShortHands\languageshorthands
+\def\languageshorthands#1{}
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{fvextra}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,breakanywhere,commandchars=\\\{\}}
+\fvset{breaklines,breakanywhere}
+\usepackage{float}
+\floatplacement{figure}{H}
+\renewcommand{\figurename}{Hình}
+\renewcommand{\tablename}{Bảng}
+\renewcommand{\contentsname}{Mục lục}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdflang={vi},
+  colorlinks=true,
+  linkcolor={Maroon},
+  filecolor={Maroon},
+  citecolor={Blue},
+  urlcolor={Blue},
+  pdfcreator={LaTeX via pandoc}}
+
+\author{}
+\date{}
+
+\begin{document}
+
+\section{L01 --- HDFS: blocks, replicas và sự cố
+DataNode}\label{l01-hdfs-blocks-replicas-vuxe0-sux1ef1-cux1ed1-datanode}
+
+Môi trường: WSL2 (x86\_64, 12 CPU, Docker 31.9 GB), Hadoop 3.4.3 --- 1
+NameNode, 3 DataNode, RM, NM, JobHistory. Log gốc của mọi bước nằm trong
+các file \texttt{0*.txt} ở thư mục này; ảnh ở \texttt{img/}.
+
+Ánh xạ IP → hostname (từ \texttt{hdfs\ dfsadmin\ -report}):
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule\noalign{}
+IP & Host \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+172.29.0.5 & datanode1 \\
+172.29.0.2 & datanode2 \\
+172.29.0.3 & datanode3 \\
+\end{longtable}
+
+\subsection{\texorpdfstring{1--2. Khởi động cluster và
+\texttt{hdfs\ dfs}
+shell}{1--2. Khởi động cluster và hdfs dfs shell}}\label{khux1edfi-ux111ux1ed9ng-cluster-vuxe0-hdfs-dfs-shell}
+
+\pandocbounded{\includegraphics[keepaspectratio]{img/01_cluster_and_dfs_shell.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/11_ui_namenode_overview_healthy.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/12_ui_datanodes_healthy.png}}
+
+\textbf{TODO 2.1}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\ExtensionTok{hdfs}\NormalTok{ dfs }\AttributeTok{{-}stat} \StringTok{"name=\%n blocksize=\%o repl=\%r size=\%b"}\NormalTok{ /data/taxi/taxi\_zone\_lookup.csv}
+\CommentTok{\# name=taxi\_zone\_lookup.csv blocksize=134217728 repl=3 size=12331}
+\end{Highlighting}
+\end{Shaded}
+
+\subsection{3. Block mặc định (128 MB) và block 16
+MB}\label{block-mux1eb7c-ux111ux1ecbnh-128-mb-vuxe0-block-16-mb}
+
+\begin{longtable}[]{@{}lll@{}}
+\toprule\noalign{}
+Upload & Số block & Kích thước block \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+mặc định 128 MB & 1 & 49,961,641 \\
+\texttt{-D\ dfs.blocksize=16m} & 3 & 16,777,216 + 16,777,216 +
+16,407,209 \\
+\end{longtable}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/02_blocks_128m_vs_16m.png}}
+\caption{fsck 128m vs 16m}
+\end{figure}
+
+Các file block vật lý trên datanode1
+(\texttt{blk\_\textless{}id\textgreater{}} +
+\texttt{blk\_\textless{}id\textgreater{}\_\textless{}genstamp\textgreater{}.meta});
+block cuối chỉ 16,407,209 byte, không bị pad lên 16 MB:
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/03_physical_block_files_datanode1.png}}
+\caption{block files}
+\end{figure}
+
+\subsection{4. Replication factor}\label{replication-factor}
+
+\texttt{setrep\ -w\ 2} → \texttt{Live\_repl=2} cho cả 3 block; dung
+lượng raw của \texttt{small\_blocks} giảm từ 142.9 M xuống \textbf{95.3
+M}.
+
+\textbf{TODO 4.1}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\ExtensionTok{hdfs}\NormalTok{ dfs }\AttributeTok{{-}D}\NormalTok{ dfs.replication=1 }\AttributeTok{{-}put}\NormalTok{ /datasets/data/taxi/taxi\_zone\_lookup.csv /tmp/one\_replica.csv}
+\CommentTok{\# one\_replica.csv repl=1   (replica duy nhất nằm trên 172.29.0.5 = datanode1)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/04_setrep2_and_todo4.1.png}}
+\caption{setrep}
+\end{figure}
+
+\subsection{5. Tắt DataNode → under-replication →
+re-replication}\label{tux1eaft-datanode-under-replication-re-replication}
+
+Tắt \textbf{datanode3} (đang giữ replica của cả 3 block của file
+\texttt{small\_blocks}).
+
+\textbf{(a) \texttt{fsck} của file block 16 MB TRƯỚC khi tắt} (replica
+nằm trên \texttt{.5} datanode1 và \texttt{.3} datanode3):
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/05_fsck_small_blocks_BEFORE_kill.png}}
+\caption{before}
+\end{figure}
+
+\textbf{(b) Thời gian đến khi node bị coi là chết:} \textbf{90 s}
+(\texttt{Dead\ datanodes\ (1)} lúc t+90 s). Lúc t+94 s (10:17:40)
+NameNode log
+\texttt{removeDeadDatanode:\ lost\ heartbeat\ from\ 172.29.0.3}; từ lần
+poll t+98 s trở đi \texttt{Under\ replicated\ blocks:\ 2}. Con số 90 s
+khớp với lý thuyết 2 × recheck-interval (30 s) + 10 × heartbeat (3 s).
+
+\pandocbounded{\includegraphics[keepaspectratio]{img/06_kill_datanode3_timeline.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/14_ui_overview_datanode3_DEAD.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/15_ui_datanodes_datanode3_DEAD.png}}
+
+\textbf{(c) \texttt{fsck} của file block 16 MB SAU khi tắt:} cả 3 block
+vẫn \texttt{Live\_repl=2}, nhưng replica trên \texttt{.3} đã được
+\textbf{chép lại sang \texttt{.2} (datanode2)} → file trở lại
+\texttt{OK}.
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/07_fsck_small_blocks_AFTER_kill.png}}
+\caption{after}
+\end{figure}
+
+Hai file replication 3 (\texttt{default\_blocks/...parquet},
+\texttt{taxi\_zone\_lookup.csv}) vẫn \textbf{under-replicated} (2 block,
+40 \%) nhưng \texttt{Status:\ HEALTHY}; md5 của file tải về trùng với
+bản gốc → không mất dữ liệu. (\texttt{/tmp/one\_replica.csv} nằm trên
+datanode1 nên không bị MISSING.)
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/08_fsck_data_underreplicated_md5.png}}
+\caption{under-replicated + md5}
+\end{figure}
+
+Bật lại datanode3 → \texttt{Under-replicated\ 0},
+\texttt{Over-replicated\ 0} (replica thừa đã bị xoá):
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/09_datanode3_back.png}}
+\caption{back}
+\end{figure}
+
+\subsection{6--7. Safe mode và fsimage}\label{safe-mode-vuxe0-fsimage}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/10_safemode_fsimage.png}}
+\caption{safemode}
+\end{figure}
+
+Trong safe mode lệnh ghi bị từ chối
+(\texttt{Name\ node\ is\ in\ safe\ mode}), lệnh đọc vẫn chạy. Sau
+\texttt{restart\ namenode} safe mode tự bật vài giây. fsimage
+(\texttt{hdfs\ oiv}) chứa tên file/thư mục và block ID nhưng
+\textbf{không có vị trí block} (grep thông tin DataNode/port 9866 trả về
+0 dòng).
+
+\subsection{Trả lời checkpoint}\label{trux1ea3-lux1eddi-checkpoint}
+
+\textbf{Q1. File 300 MB, block mặc định, replication 3?} ⌈300/128⌉ =
+\textbf{3 block} (128 + 128 + 44 MB) → \textbf{9 block replica} →
+\textasciitilde{}\textbf{900 MB} đĩa raw (cộng thêm file \texttt{.meta}
+checksum rất nhỏ). NameNode chỉ giữ 3 đối tượng block trong RAM, không
+phụ thuộc replication.
+
+\textbf{Q2. Vì sao block cuối nhỏ hơn 16 MB, có lãng phí 16 MB không?}
+File kết thúc ở đó: 49,961,641 − 2 × 16,777,216 = 16,407,209 byte. Block
+size chỉ là kích thước \textbf{tối đa}; file block trên DataNode đúng
+bằng lượng dữ liệu thực (thấy rõ ở ảnh 03), nên không lãng phí đĩa.
+
+\textbf{Q3. Danh sách vị trí block được lưu ở đâu? Restart NameNode thì
+sao?} Chỉ nằm trong \textbf{RAM của NameNode}, không có trong fsimage
+hay edit log (ảnh 10). Khi restart, NameNode dựng lại block map từ
+\textbf{block report} của các DataNode, vì thế nó phải nằm trong safe
+mode đến khi nhận đủ report.
+
+\textbf{Q4. Vì sao file replication 2 được chữa còn file replication 3
+thì không?} Re-replication cần một DataNode \textbf{chưa có} replica của
+block đó. Khi chỉ còn 2 node sống: block rep-2 mất một bản trên
+datanode3 → chép được sang datanode2 (node còn trống). Block rep-3 thì
+đã có bản trên \textbf{cả hai} node còn lại, không còn node thứ ba để
+đặt bản sao, và HDFS không bao giờ đặt 2 replica của cùng một block trên
+một DataNode. Vì vậy nó vẫn under-replicated cho đến khi datanode3 quay
+lại.
+
+\textbf{Q5. \texttt{fsck} báo gì khi under-replicated, vì sao không phải
+lỗi?} \texttt{Status:\ HEALTHY} kèm
+\texttt{Under-replicated\ blocks:\ 2\ (40.0\ \%)}. HEALTHY nghĩa là
+block nào cũng có ít nhất \texttt{dfs.namenode.replication.min} (=1)
+replica sống, nên toàn bộ dữ liệu vẫn đọc được (md5 khớp).
+Under-replication chỉ là \textbf{rủi ro} (giảm độ dư thừa); lỗi thật là
+MISSING/CORRUPT.
+
+\textbf{Q6. Với \texttt{recheck-interval} mặc định (5 phút) thì sao? Vì
+sao timeout dài là mặc định tốt?} Node bị coi là chết sau 2 × 5 phút +
+10 × 3 s = \textbf{10.5 phút} (lab: 90 s). Timeout dài tránh
+\textbf{replication storm}: một node reboot hay chập mạng ngắn sẽ khiến
+cluster chép hàng TB block, rồi các bản đó lại thành thừa khi node quay
+lại sau một phút, tốn băng thông và I/O. Trong lúc chờ, client vẫn tránh
+các node \emph{stale} (30 s không có heartbeat) khi đọc/ghi.
+
+\textbf{Q7. Vì sao NameNode khởi động trong safe mode, vì sao phải chặn
+ghi?} Lúc khởi động NameNode biết namespace (fsimage + edits) nhưng chưa
+biết block nằm ở đâu. Trước khi ≥ 99.9 \% block được báo cáo, nó không
+phân biệt được block ``bị mất'' với block ``chưa báo cáo''. Nếu cho phép
+ghi/xoá hoặc bắt đầu re-replication thì nó sẽ quyết định sai, ví dụ lên
+lịch chép hàng loạt các block chỉ đơn giản là chưa được báo cáo. Safe
+mode = chỉ đọc cho tới khi block map đáng tin cậy.
+
+\textbf{Q8. 1 file 1 KB và 1 triệu file 1 KB: vì sao trường hợp sau là
+vấn đề?} Mỗi file, thư mục và block là một object trong heap NameNode
+(\textasciitilde150 B). 1 triệu file nhỏ = ≥ 2 triệu object ≈ 300 MB
+heap cho vỏn vẹn 1 GB dữ liệu, cộng thêm 1 triệu RPC và sau này 1 triệu
+map task (mỗi file một split). Đây là \textbf{small files problem}. Cách
+xử lý: gộp file, dùng định dạng container (Parquet/ORC, SequenceFile,
+HAR).
+
+\end{document}

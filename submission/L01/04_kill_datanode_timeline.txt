@@ -1,0 +1,21 @@
+datanode3 stopped at 10:16:06 UTC
+t+1s  	Under replicated blocks: 0 Live datanodes (3): 
+t+9s  	Under replicated blocks: 0 Live datanodes (3): 
+t+17s  	Under replicated blocks: 0 Live datanodes (3): 
+t+26s  	Under replicated blocks: 0 Live datanodes (3): 
+t+34s  	Under replicated blocks: 0 Live datanodes (3): 
+t+42s  	Under replicated blocks: 0 Live datanodes (3): 
+t+50s  	Under replicated blocks: 0 Live datanodes (3): 
+t+58s  	Under replicated blocks: 0 Live datanodes (3): 
+t+66s  	Under replicated blocks: 0 Live datanodes (3): 
+t+75s  	Under replicated blocks: 0 Live datanodes (3): 
+t+82s  	Under replicated blocks: 0 Live datanodes (3): 
+t+90s  	Under replicated blocks: 0 Live datanodes (2): Dead datanodes (1): 
+>>> declared DEAD after 90s
+t+98s  	Under replicated blocks: 2 Live datanodes (2): Dead datanodes (1): 
+t+105s  	Under replicated blocks: 2 Live datanodes (2): Dead datanodes (1): 
+t+113s  	Under replicated blocks: 2 Live datanodes (2): Dead datanodes (1): 
+t+121s  	Under replicated blocks: 2 Live datanodes (2): Dead datanodes (1): 
+t+129s  	Under replicated blocks: 2 Live datanodes (2): Dead datanodes (1): 
+t+137s  	Under replicated blocks: 2 Live datanodes (2): Dead datanodes (1): 
+namenode-1  | 2026-10-30 10:17:40,079 INFO hdfs.StateChange: BLOCK* removeDeadDatanode: lost heartbeat from 172.29.0.3:9866, removeBlocksFromBlockMap true

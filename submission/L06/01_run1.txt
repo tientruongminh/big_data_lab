@@ -1,0 +1,61 @@
+WARNING: Using incubator modules: jdk.incubator.vector
+Spark 4.1.3 | cores 4 | input ['/datasets/data/taxi/yellow_tripdata_2024-01.parquet']
+
+===== E1: e1_shuffle_partitions
+[E1] AQE off, shuffle.partitions=200            2.15 s | tasks=204 skewiest stage: median=7.0 ms max=48.0 ms | Exchange
+[E1] AQE off, shuffle.partitions=8              0.33 s | tasks=12 skewiest stage: median=193.0 ms max=195.0 ms | Exchange
+[E1] AQE off, shuffle.partitions=1              0.30 s | tasks=5 skewiest stage: median=158.0 ms max=162.0 ms | Exchange
+[E1] AQE on,  shuffle.partitions=200            0.46 s | tasks=5 skewiest stage: median=197.0 ms max=209.0 ms | AQEShuffleRead Exchange
+
+===== E2: e2_broadcast_vs_smj
+[E2] AQE off, broadcast (threshold 10MB)        0.77 s | tasks=13 skewiest stage: median=308.0 ms max=321.0 ms | BroadcastExchange BroadcastHashJoin Exchange
+[E2] AQE off, sort-merge (threshold -1)         1.45 s | tasks=21 skewiest stage: median=332.0 ms max=536.0 ms | Exchange SortMergeJoin
+[E2] AQE on,  threshold -1 + broadcast() hint   0.36 s | tasks=6 skewiest stage: median=164.0 ms max=170.0 ms | AQEShuffleRead BroadcastExchange BroadcastHashJoin Exchange
+
+===== E3: e3_skew
++----------+-------+
+|is_hot_key|  count|
++----------+-------+
+|      true|5998366|
+|     false|4001634|
++----------+-------+
+
+[E3] skewed SMJ, AQE off                        4.62 s | tasks=40 skewiest stage: median=227.0 ms max=2686.0 ms | Exchange SortMergeJoin
+[E3] salted SMJ (salt=64), AQE off              4.28 s | tasks=56 skewiest stage: median=569.0 ms max=1112.0 ms | Exchange SortMergeJoin
+[E3] skewed SMJ, AQE skewJoin on                2.28 s | tasks=27 skewiest stage: median=172.0 ms max=637.0 ms | AQEShuffleRead Exchange SortMergeJoin(skew=true)
+same result with and without salting: True (500061629.0)
+
+===== E4: e4_repartition_vs_coalesce
+[E4] repartition(64)                          6.67 s | files=64 | tasks=68 | Exchange
+[E4] repartition(4)                           4.32 s | files=4 | tasks=8 | Exchange
+[E4] coalesce(4)                              3.32 s | files=3 | tasks=4 | Coalesce
+[E4] coalesce(1)                              6.56 s | files=1 | tasks=1 | Coalesce
+
+===== E5: e5_cache
+[E5] no cache                                 6.07 s
+[E5] with cache (MEMORY_AND_DISK)             0.88 s
+Storage tab: [('AdaptiveSparkPlan isFinalPlan=false\n+- Project [tpep_pickup_datetime#821, PULocationID#827, payment_type#853L, tip_amount#861, fare_amount#855, total_amount#836, (tip_amount#861 / fare_amount#855) AS tip_pct#840, hour(tpep_pickup_datetime#821, Some(UTC)) AS hour#841]\n   +- HashAggregate(keys=[DOLocationID#828, tpep_dropoff_datetime#822, PULocationID#827, total_amount#836, tpep_pickup_datetime#821], functions=[first(payment_type#829L, false), first(tip_amount#833, false), first(fare_amount#830, false)], output=[tpep_pickup_datetime#821, PULocationID#827, payment_type#853L, tip_amount#861, fare_amount#855, total_amount#836])\n      +- Exchange hashpartitioning(DOLocationID#828, tpep_dropoff_datetime#822, PULocationID#827, total_amount#836, tpep_pickup_datetime#821, 8), ENSURE_REQUIREMENTS, [plan_id=2272]\n         +- HashAggregate(keys=[DOLocationID#828, tpep_dropoff_datetime#822, PULocationID#827, knownfloatingpointnormalized(normalizenanandzero(total_amount#836)) AS total_amount#836, tpep_pickup_datetime#821...', 62240847, 0)]
+
+| experiment | variant | seconds | total tasks | task median ms* | task max ms* | plan (final, after AQE) | note |
+|---|---|---|---|---|---|---|---|
+| E1 | AQE off, shuffle.partitions=200 | 2.15 | 204 | 7.0 | 48.0 | Exchange |  |
+| E1 | AQE off, shuffle.partitions=8 | 0.33 | 12 | 193.0 | 195.0 | Exchange |  |
+| E1 | AQE off, shuffle.partitions=1 | 0.3 | 5 | 158.0 | 162.0 | Exchange |  |
+| E1 | AQE on,  shuffle.partitions=200 | 0.46 | 5 | 197.0 | 209.0 | AQEShuffleRead Exchange | AQE coalesces small shuffle partitions |
+| E2 | AQE off, broadcast (threshold 10MB) | 0.77 | 13 | 308.0 | 321.0 | BroadcastExchange BroadcastHashJoin Exchange |  |
+| E2 | AQE off, sort-merge (threshold -1) | 1.45 | 21 | 332.0 | 536.0 | Exchange SortMergeJoin |  |
+| E2 | AQE on,  threshold -1 + broadcast() hint | 0.36 | 6 | 164.0 | 170.0 | AQEShuffleRead BroadcastExchange BroadcastHashJoin Exchange | an explicit hint beats the threshold |
+| E3 | skewed SMJ, AQE off | 4.62 | 40 | 227.0 | 2686.0 | Exchange SortMergeJoin |  |
+| E3 | salted SMJ (salt=64), AQE off | 4.28 | 56 | 569.0 | 1112.0 | Exchange SortMergeJoin |  |
+| E3 | skewed SMJ, AQE skewJoin on | 2.28 | 27 | 172.0 | 637.0 | AQEShuffleRead Exchange SortMergeJoin(skew=true) | look for AQEShuffleRead (skewed) in the SQL tab |
+| E4 | repartition(64) | 6.67 | 68 | 142.0 | 965.0 | Exchange | 64 files |
+| E4 | repartition(4) | 4.32 | 8 | 1832.0 | 1857.0 | Exchange | 4 files |
+| E4 | coalesce(4) | 3.32 | 4 | 3094.0 | 3173.0 | Coalesce | 3 files |
+| E4 | coalesce(1) | 6.56 | 1 | 6470.0 | 6470.0 | Coalesce | 1 files |
+| E5 | no cache | 6.07 |  |  |  |  | 3 aggregations |
+| E5 | cache materialisation (count) | 3.61 |  |  |  |  | 2869714 rows |
+| E5 | with cache (MEMORY_AND_DISK) | 0.88 |  |  |  |  | 3 aggregations |
+* median / max task run time of the most skewed stage of that query
+
+appended 17 rows to /lab/results/results.csv
+WALL 71.71 s

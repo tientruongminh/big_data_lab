@@ -1,0 +1,30 @@
+$ docker compose ps
+NAME                              STATUS
+l04_ingestion-datanode-1          Up 27 seconds
+l04_ingestion-historyserver-1     Up 20 seconds
+l04_ingestion-jdbc-driver-1       Exited (0) 27 seconds ago
+l04_ingestion-namenode-1          Up 28 seconds (healthy)
+l04_ingestion-nodemanager-1       Up 20 seconds
+l04_ingestion-postgres-1          Up 28 seconds (healthy)
+l04_ingestion-resourcemanager-1   Up 20 seconds
+l04_ingestion-spark-1             Up 20 seconds
+l04_ingestion-sqoop-1             Up 20 seconds
+
+$ psql \dt
+             List of tables
+ Schema |      Name      | Type  | Owner 
+--------+----------------+-------+-------
+ public | customers      | table | olist
+ public | order_items    | table | olist
+ public | order_payments | table | olist
+ public | orders         | table | olist
+ public | products       | table | olist
+ public | sellers        | table | olist
+(6 rows)
+
+$ psql: SELECT count(*), min(order_seq), max(order_seq), max(updated_at) FROM orders
+ count | min | max  |         max         
+-------+-----+------+---------------------
+  5000 |   1 | 5000 | 2018-09-08 09:48:29
+(1 row)
+

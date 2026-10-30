@@ -1,0 +1,527 @@
+WARNING: Using incubator modules: jdk.incubator.vector
+
+================================================================================
+1. SparkSession and reading Parquet
+================================================================================
+Spark 4.1.3 | master local[4] | ANSI mode: true
+input files: ['/datasets/data/taxi/yellow_tripdata_2024-01.parquet']
+root
+ |-- VendorID: integer (nullable = true)
+ |-- tpep_pickup_datetime: timestamp_ntz (nullable = true)
+ |-- tpep_dropoff_datetime: timestamp_ntz (nullable = true)
+ |-- passenger_count: long (nullable = true)
+ |-- trip_distance: double (nullable = true)
+ |-- RatecodeID: long (nullable = true)
+ |-- store_and_fwd_flag: string (nullable = true)
+ |-- PULocationID: integer (nullable = true)
+ |-- DOLocationID: integer (nullable = true)
+ |-- payment_type: long (nullable = true)
+ |-- fare_amount: double (nullable = true)
+ |-- extra: double (nullable = true)
+ |-- mta_tax: double (nullable = true)
+ |-- tip_amount: double (nullable = true)
+ |-- tolls_amount: double (nullable = true)
+ |-- improvement_surcharge: double (nullable = true)
+ |-- total_amount: double (nullable = true)
+ |-- congestion_surcharge: double (nullable = true)
+ |-- Airport_fee: double (nullable = true)
+
+rows: 2964624 | partitions: 4
++--------+--------------------+---------------------+---------------+-------------+----------+------------------+------------+------------+------------+-----------+-----+-------+----------+------------+---------------------+------------+--------------------+-----------+
+|VendorID|tpep_pickup_datetime|tpep_dropoff_datetime|passenger_count|trip_distance|RatecodeID|store_and_fwd_flag|PULocationID|DOLocationID|payment_type|fare_amount|extra|mta_tax|tip_amount|tolls_amount|improvement_surcharge|total_amount|congestion_surcharge|Airport_fee|
++--------+--------------------+---------------------+---------------+-------------+----------+------------------+------------+------------+------------+-----------+-----+-------+----------+------------+---------------------+------------+--------------------+-----------+
+|2       |2024-01-01 00:57:55 |2024-01-01 01:17:43  |1              |1.72         |1         |N                 |186         |79          |2           |17.7       |1.0  |0.5    |0.0       |0.0         |1.0                  |22.7        |2.5                 |0.0        |
+|1       |2024-01-01 00:03:00 |2024-01-01 00:09:36  |1              |1.8          |1         |N                 |140         |236         |1           |10.0       |3.5  |0.5    |3.75      |0.0         |1.0                  |18.75       |2.5                 |0.0        |
+|1       |2024-01-01 00:17:06 |2024-01-01 00:35:01  |1              |4.7          |1         |N                 |236         |79          |1           |23.3       |3.5  |0.5    |3.0       |0.0         |1.0                  |31.3        |2.5                 |0.0        |
++--------+--------------------+---------------------+---------------+-------------+----------+------------------+------------+------------+------------+-----------+-----+-------+----------+------------+---------------------+------------+--------------------+-----------+
+only showing top 3 rows
+root
+ |-- LocationID: integer (nullable = true)
+ |-- Borough: string (nullable = true)
+ |-- Zone: string (nullable = true)
+ |-- service_zone: string (nullable = true)
+
+
+================================================================================
+2. Transformations are lazy, actions run jobs
+================================================================================
+building 3 transformations took 0.096 s  (no Spark job yet -- check the UI)
+count() = 228254 long trips, took 0.28 s  (an ACTION: a job ran)
+
+================================================================================
+3. Data quality and cleaning
+================================================================================
+-RECORD 0-----------------------
+ VendorID              | 0      
+ tpep_pickup_datetime  | 0      
+ tpep_dropoff_datetime | 0      
+ passenger_count       | 140162 
+ trip_distance         | 0      
+ RatecodeID            | 140162 
+ store_and_fwd_flag    | 140162 
+ PULocationID          | 0      
+ DOLocationID          | 0      
+ payment_type          | 0      
+ fare_amount           | 0      
+ extra                 | 0      
+ mta_tax               | 0      
+ tip_amount            | 0      
+ tolls_amount          | 0      
+ improvement_surcharge | 0      
+ total_amount          | 0      
+ congestion_surcharge  | 140162 
+ Airport_fee           | 140162 
+
+-RECORD 0-----------------------------------
+ pickup outside the file's month(s) | 18    
+ negative or zero fare              | 38341 
+ negative total                     | 35504 
+ distance <= 0 or > 100 miles       | 60430 
+ duration <= 0 or > 6 h             | 2642  
+
+kept 2,867,786 of 2,964,624 rows (96.73 %)
+
+================================================================================
+4. Join with the zone lookup (pickup and dropoff)
+================================================================================
++-------------------+----------+----------------------------+----------+---------------------+------------+
+|pickup_ts          |pu_borough|pu_zone                     |do_borough|do_zone              |total_amount|
++-------------------+----------+----------------------------+----------+---------------------+------------+
+|2024-01-01 00:57:55|Manhattan |Penn Station/Madison Sq West|Manhattan |East Village         |22.7        |
+|2024-01-01 00:03:00|Manhattan |Lenox Hill East             |Manhattan |Upper East Side North|18.75       |
+|2024-01-01 00:17:06|Manhattan |Upper East Side North       |Manhattan |East Village         |31.3        |
+|2024-01-01 00:36:38|Manhattan |East Village                |Manhattan |SoHo                 |17.0        |
+|2024-01-01 00:46:51|Manhattan |SoHo                        |Manhattan |Lower East Side      |16.1        |
++-------------------+----------+----------------------------+----------+---------------------+------------+
+only showing top 5 rows
+
+================================================================================
+5. groupBy / agg
+================================================================================
++-------------+-------+--------+-----------+---------+
+|   pu_borough|  trips|avg_fare|avg_tip_pct|avg_miles|
++-------------+-------+--------+-----------+---------+
+|    Manhattan|2571810|   14.92|       21.6|     2.31|
+|       Queens| 257573|   52.77|       21.8|    12.76|
+|     Brooklyn|  22257|   28.77|        6.9|     6.15|
+|      Unknown|   9614|   18.93|       20.2|     3.31|
+|        Bronx|   5750|   32.38|        0.8|     7.75|
+|          N/A|    688|   71.27|       12.4|     9.26|
+|          EWR|     49|   84.37|       11.6|     5.77|
+|Staten Island|     45|   46.94|        5.8|     10.2|
++-------------+-------+--------+-----------+---------+
+
++-----------+------+
+|pickup_hour| trips|
++-----------+------+
+|          0| 75156|
+|          1| 50431|
+|          2| 34923|
+|          3| 22916|
+|          4| 15252|
+|          5| 17484|
+|          6| 39392|
+|          7| 80811|
+|          8|113426|
+|          9|125530|
+|         10|135322|
+|         11|146646|
+|         12|159808|
+|         13|165198|
+|         14|177868|
+|         15|183840|
+|         16|184816|
+|         17|200144|
+|         18|206163|
+|         19|178696|
+|         20|155463|
+|         21|155808|
+|         22|138149|
+|         23|104544|
++-----------+------+
+
+
+================================================================================
+6. Window functions
+================================================================================
++-------------+--------------------------------+------+----+
+|pu_borough   |pu_zone                         |trips |rank|
++-------------+--------------------------------+------+----+
+|Bronx        |Mott Haven/Port Morris          |436   |1   |
+|Bronx        |Co-Op City                      |362   |2   |
+|Bronx        |East Concourse/Concourse Village|300   |3   |
+|Brooklyn     |Downtown Brooklyn/MetroTech     |1292  |1   |
+|Brooklyn     |Brooklyn Heights                |1167  |2   |
+|Brooklyn     |Fort Greene                     |1048  |3   |
+|EWR          |Newark Airport                  |49    |1   |
+|Manhattan    |Midtown Center                  |140065|1   |
+|Manhattan    |Upper East Side South           |140059|2   |
+|Manhattan    |Upper East Side North           |133891|3   |
+|N/A          |Outside of NYC                  |688   |1   |
+|Queens       |JFK Airport                     |138296|1   |
+|Queens       |LaGuardia Airport               |87657 |2   |
+|Queens       |East Elmhurst                   |11861 |3   |
+|Staten Island|Arrochar/Fort Wadsworth         |18    |1   |
+|Staten Island|Heartland Village/Todt Hill     |4     |2   |
+|Staten Island|Saint George/New Brighton       |4     |2   |
+|Staten Island|South Beach/Dongan Hills        |4     |2   |
+|Staten Island|Westerleigh                     |2     |3   |
+|Staten Island|New Dorp/Midland Beach          |2     |3   |
+|Staten Island|Oakwood                         |2     |3   |
+|Staten Island|Bloomfield/Emerson Hill         |2     |3   |
+|Staten Island|Grymes Hill/Clifton             |2     |3   |
+|Unknown      |N/A                             |9614  |1   |
++-------------+--------------------------------+------+----+
+
+26/10/30 10:56:23 WARN WindowExec: No Partition Defined for Window operation! Moving all data to a single partition, this can cause serious performance degradation.
+26/10/30 10:56:23 WARN WindowExec: No Partition Defined for Window operation! Moving all data to a single partition, this can cause serious performance degradation.
+26/10/30 10:56:23 WARN WindowExec: No Partition Defined for Window operation! Moving all data to a single partition, this can cause serious performance degradation.
+26/10/30 10:56:23 WARN WindowExec: No Partition Defined for Window operation! Moving all data to a single partition, this can cause serious performance degradation.
+26/10/30 10:56:23 WARN WindowExec: No Partition Defined for Window operation! Moving all data to a single partition, this can cause serious performance degradation.
+26/10/30 10:56:23 WARN WindowExec: No Partition Defined for Window operation! Moving all data to a single partition, this can cause serious performance degradation.
+26/10/30 10:56:23 WARN WindowExec: No Partition Defined for Window operation! Moving all data to a single partition, this can cause serious performance degradation.
+26/10/30 10:56:24 WARN WindowExec: No Partition Defined for Window operation! Moving all data to a single partition, this can cause serious performance degradation.
+26/10/30 10:56:24 WARN WindowExec: No Partition Defined for Window operation! Moving all data to a single partition, this can cause serious performance degradation.
+26/10/30 10:56:24 WARN WindowExec: No Partition Defined for Window operation! Moving all data to a single partition, this can cause serious performance degradation.
+26/10/30 10:56:24 WARN WindowExec: No Partition Defined for Window operation! Moving all data to a single partition, this can cause serious performance degradation.
++-----------+------+-------+--------------+--------------+---------------+
+|pickup_date| trips|revenue|prev_day_trips|dod_change_pct|running_revenue|
++-----------+------+-------+--------------+--------------+---------------+
+| 2024-01-01| 75440|2335972|          NULL|          NULL|        2335972|
+| 2024-01-02| 72940|2251748|         75440|          -3.3|        4587720|
+| 2024-01-03| 79903|2336980|         72940|           9.5|        6924700|
+| 2024-01-04|100085|2779093|         79903|          25.3|        9703793|
+| 2024-01-05|100073|2700263|        100085|           0.0|       12404056|
+| 2024-01-06| 93682|2400380|        100073|          -6.4|       14804436|
+| 2024-01-07| 65174|1870461|         93682|         -30.4|       16674897|
+| 2024-01-08| 77683|2198845|         65174|          19.2|       18873742|
+| 2024-01-09| 90303|2322347|         77683|          16.2|       21196089|
+| 2024-01-10| 92475|2526815|         90303|           2.4|       23722904|
++-----------+------+-------+--------------+--------------+---------------+
+only showing top 10 rows
+
+================================================================================
+7. Spark SQL on a temp view
+================================================================================
+26/10/30 10:56:24 WARN SparkStringUtils: Truncated the string representation of a plan since it was too large. This behavior can be adjusted by setting 'spark.sql.debug.maxToStringFields'.
++-------------+-------+--------+-----------+---------+
+|   pu_borough|  trips|avg_fare|avg_tip_pct|avg_miles|
++-------------+-------+--------+-----------+---------+
+|    Manhattan|2571810|   14.92|       21.6|     2.31|
+|       Queens| 257573|   52.77|       21.8|    12.76|
+|     Brooklyn|  22257|   28.77|        6.9|     6.15|
+|      Unknown|   9614|   18.93|       20.2|     3.31|
+|        Bronx|   5750|   32.38|        0.8|     7.75|
+|          N/A|    688|   71.27|       12.4|     9.26|
+|          EWR|     49|   84.37|       11.6|     5.77|
+|Staten Island|     45|   46.94|        5.8|     10.2|
++-------------+-------+--------+-----------+---------+
+
+SQL result == DataFrame result: True
+
+================================================================================
+8. explain('formatted')
+================================================================================
+== Physical Plan ==
+AdaptiveSparkPlan (47)
++- == Final Plan ==
+   ResultQueryStage (31)
+   +- * Sort (30)
+      +- AQEShuffleRead (29)
+         +- ShuffleQueryStage (28), Statistics(sizeInBytes=464.0 B, rowCount=8)
+            +- Exchange (27)
+               +- * HashAggregate (26)
+                  +- AQEShuffleRead (25)
+                     +- ShuffleQueryStage (24), Statistics(sizeInBytes=1968.0 B, rowCount=24)
+                        +- Exchange (23)
+                           +- * HashAggregate (22)
+                              +- * Project (21)
+                                 +- * BroadcastHashJoin LeftOuter BuildRight (20)
+                                    :- * Project (14)
+                                    :  +- * BroadcastHashJoin LeftOuter BuildRight (13)
+                                    :     :- TableCacheQueryStage (7), Statistics(sizeInBytes=462.1 MiB, rowCount=2.87E+6)
+                                    :     :  +- InMemoryTableScan (1)
+                                    :     :        +- InMemoryRelation (2)
+                                    :     :              +- * Project (6)
+                                    :     :                 +- * Filter (5)
+                                    :     :                    +- * ColumnarToRow (4)
+                                    :     :                       +- Scan parquet  (3)
+                                    :     +- BroadcastQueryStage (12), Statistics(sizeInBytes=1026.1 KiB, rowCount=265)
+                                    :        +- BroadcastExchange (11)
+                                    :           +- * Project (10)
+                                    :              +- * Filter (9)
+                                    :                 +- Scan csv  (8)
+                                    +- BroadcastQueryStage (19), Statistics(sizeInBytes=1026.1 KiB, rowCount=265)
+                                       +- BroadcastExchange (18)
+                                          +- * Project (17)
+                                             +- * Filter (16)
+                                                +- Scan csv  (15)
++- == Initial Plan ==
+   Sort (46)
+   +- Exchange (45)
+      +- HashAggregate (44)
+         +- Exchange (43)
+            +- HashAggregate (42)
+               +- Project (41)
+                  +- BroadcastHashJoin LeftOuter BuildRight (40)
+                     :- Project (36)
+                     :  +- BroadcastHashJoin LeftOuter BuildRight (35)
+                     :     :- InMemoryTableScan (1)
+                     :     :     +- InMemoryRelation (2)
+                     :     :           +- * Project (6)
+                     :     :              +- * Filter (5)
+                     :     :                 +- * ColumnarToRow (4)
+                     :     :                    +- Scan parquet  (3)
+                     :     +- BroadcastExchange (34)
+                     :        +- Project (33)
+                     :           +- Filter (32)
+                     :              +- Scan csv  (8)
+                     +- BroadcastExchange (39)
+                        +- Project (38)
+                           +- Filter (37)
+                              +- Scan csv  (15)
+
+
+(1) InMemoryTableScan
+Output [5]: [trip_distance#4, PULocationID#7, DOLocationID#8, fare_amount#10, tip_pct#337]
+Arguments: [trip_distance#4, PULocationID#7, DOLocationID#8, fare_amount#10, tip_pct#337]
+
+(2) InMemoryRelation
+Arguments: [VendorID#0, tpep_pickup_datetime#1, tpep_dropoff_datetime#2, passenger_count#331L, trip_distance#4, RatecodeID#332L, store_and_fwd_flag#6, PULocationID#7, DOLocationID#8, payment_type#9L, fare_amount#10, extra#11, mta_tax#12, tip_amount#13, tolls_amount#14, improvement_surcharge#15, total_amount#16, congestion_surcharge#333, Airport_fee#334, pickup_ts#283, duration_min#284, pickup_date#335, pickup_hour#336, tip_pct#337], StorageLevel(disk, memory, deserialized, 1 replicas)
+
+(3) Scan parquet 
+Output [19]: [VendorID#0, tpep_pickup_datetime#1, tpep_dropoff_datetime#2, passenger_count#3L, trip_distance#4, RatecodeID#5L, store_and_fwd_flag#6, PULocationID#7, DOLocationID#8, payment_type#9L, fare_amount#10, extra#11, mta_tax#12, tip_amount#13, tolls_amount#14, improvement_surcharge#15, total_amount#16, congestion_surcharge#17, Airport_fee#18]
+Batched: true
+Location: InMemoryFileIndex [file:/datasets/data/taxi/yellow_tripdata_2024-01.parquet]
+PushedFilters: [IsNotNull(tpep_pickup_datetime), IsNotNull(fare_amount), IsNotNull(total_amount), IsNotNull(trip_distance), GreaterThan(fare_amount,0.0), GreaterThanOrEqual(total_amount,0.0), GreaterThan(trip_distance,0.0), LessThanOrEqual(trip_distance,100.0)]
+ReadSchema: struct<VendorID:int,tpep_pickup_datetime:timestamp_ntz,tpep_dropoff_datetime:timestamp_ntz,passenger_count:bigint,trip_distance:double,RatecodeID:bigint,store_and_fwd_flag:string,PULocationID:int,DOLocationID:int,payment_type:bigint,fare_amount:double,extra:double,mta_tax:double,tip_amount:double,tolls_amount:double,improvement_surcharge:double,total_amount:double,congestion_surcharge:double,Airport_fee:double>
+
+(4) ColumnarToRow [codegen id : 1]
+Input [19]: [VendorID#0, tpep_pickup_datetime#1, tpep_dropoff_datetime#2, passenger_count#3L, trip_distance#4, RatecodeID#5L, store_and_fwd_flag#6, PULocationID#7, DOLocationID#8, payment_type#9L, fare_amount#10, extra#11, mta_tax#12, tip_amount#13, tolls_amount#14, improvement_surcharge#15, total_amount#16, congestion_surcharge#17, Airport_fee#18]
+
+(5) Filter [codegen id : 1]
+Input [19]: [VendorID#0, tpep_pickup_datetime#1, tpep_dropoff_datetime#2, passenger_count#3L, trip_distance#4, RatecodeID#5L, store_and_fwd_flag#6, PULocationID#7, DOLocationID#8, payment_type#9L, fare_amount#10, extra#11, mta_tax#12, tip_amount#13, tolls_amount#14, improvement_surcharge#15, total_amount#16, congestion_surcharge#17, Airport_fee#18]
+Condition : ((((((((((isnotnull(tpep_pickup_datetime#1) AND isnotnull(fare_amount#10)) AND isnotnull(total_amount#16)) AND isnotnull(trip_distance#4)) AND (date_format(cast(tpep_pickup_datetime#1 as timestamp), yyyy-MM, Some(UTC)) = 2024-01)) AND (fare_amount#10 > 0.0)) AND (total_amount#16 >= 0.0)) AND (trip_distance#4 > 0.0)) AND (trip_distance#4 <= 100.0)) AND ((cast((unix_timestamp(tpep_dropoff_datetime#2, yyyy-MM-dd HH:mm:ss, Some(UTC), true) - unix_timestamp(tpep_pickup_datetime#1, yyyy-MM-dd HH:mm:ss, Some(UTC), true)) as double) / 60.0) > 0.0)) AND ((cast((unix_timestamp(tpep_dropoff_datetime#2, yyyy-MM-dd HH:mm:ss, Some(UTC), true) - unix_timestamp(tpep_pickup_datetime#1, yyyy-MM-dd HH:mm:ss, Some(UTC), true)) as double) / 60.0) <= 360.0))
+
+(6) Project [codegen id : 1]
+Output [24]: [VendorID#0, tpep_pickup_datetime#1, tpep_dropoff_datetime#2, coalesce(passenger_count#3L, 1) AS passenger_count#331L, trip_distance#4, coalesce(RatecodeID#5L, 1) AS RatecodeID#332L, store_and_fwd_flag#6, PULocationID#7, DOLocationID#8, payment_type#9L, fare_amount#10, extra#11, mta_tax#12, tip_amount#13, tolls_amount#14, improvement_surcharge#15, total_amount#16, coalesce(nanvl(congestion_surcharge#17, null), 0.0) AS congestion_surcharge#333, coalesce(nanvl(Airport_fee#18, null), 0.0) AS Airport_fee#334, tpep_pickup_datetime#1 AS pickup_ts#283, (cast((unix_timestamp(tpep_dropoff_datetime#2, yyyy-MM-dd HH:mm:ss, Some(UTC), true) - unix_timestamp(tpep_pickup_datetime#1, yyyy-MM-dd HH:mm:ss, Some(UTC), true)) as double) / 60.0) AS duration_min#284, cast(tpep_pickup_datetime#1 as date) AS pickup_date#335, hour(tpep_pickup_datetime#1, Some(UTC)) AS pickup_hour#336, round(((tip_amount#13 / fare_amount#10) * 100.0), 1) AS tip_pct#337]
+Input [19]: [VendorID#0, tpep_pickup_datetime#1, tpep_dropoff_datetime#2, passenger_count#3L, trip_distance#4, RatecodeID#5L, store_and_fwd_flag#6, PULocationID#7, DOLocationID#8, payment_type#9L, fare_amount#10, extra#11, mta_tax#12, tip_amount#13, tolls_amount#14, improvement_surcharge#15, total_amount#16, congestion_surcharge#17, Airport_fee#18]
+
+(7) TableCacheQueryStage
+Output [5]: [trip_distance#4, PULocationID#7, DOLocationID#8, fare_amount#10, tip_pct#337]
+Arguments: 0
+
+(8) Scan csv 
+Output [2]: [LocationID#118, Borough#119]
+Batched: false
+Location: InMemoryFileIndex [file:/datasets/data/taxi/taxi_zone_lookup.csv]
+PushedFilters: [IsNotNull(LocationID)]
+ReadSchema: struct<LocationID:int,Borough:string>
+
+(9) Filter [codegen id : 1]
+Input [2]: [LocationID#118, Borough#119]
+Condition : isnotnull(LocationID#118)
+
+(10) Project [codegen id : 1]
+Output [2]: [LocationID#118 AS PULocationID#1111, Borough#119 AS pu_borough#1112]
+Input [2]: [LocationID#118, Borough#119]
+
+(11) BroadcastExchange
+Input [2]: [PULocationID#1111, pu_borough#1112]
+Arguments: HashedRelationBroadcastMode(List(cast(input[0, int, true] as bigint)),false), [plan_id=2374]
+
+(12) BroadcastQueryStage
+Output [2]: [PULocationID#1111, pu_borough#1112]
+Arguments: 1
+
+(13) BroadcastHashJoin [codegen id : 3]
+Left keys [1]: [PULocationID#7]
+Right keys [1]: [PULocationID#1111]
+Join type: LeftOuter
+Join condition: None
+
+(14) Project [codegen id : 3]
+Output [5]: [trip_distance#4, DOLocationID#8, fare_amount#10, tip_pct#337, pu_borough#1112]
+Input [7]: [trip_distance#4, PULocationID#7, DOLocationID#8, fare_amount#10, tip_pct#337, PULocationID#1111, pu_borough#1112]
+
+(15) Scan csv 
+Output [1]: [LocationID#1118]
+Batched: false
+Location: InMemoryFileIndex [file:/datasets/data/taxi/taxi_zone_lookup.csv]
+PushedFilters: [IsNotNull(LocationID)]
+ReadSchema: struct<LocationID:int>
+
+(16) Filter [codegen id : 2]
+Input [1]: [LocationID#1118]
+Condition : isnotnull(LocationID#1118)
+
+(17) Project [codegen id : 2]
+Output [1]: [LocationID#1118 AS DOLocationID#1115]
+Input [1]: [LocationID#1118]
+
+(18) BroadcastExchange
+Input [1]: [DOLocationID#1115]
+Arguments: HashedRelationBroadcastMode(List(cast(input[0, int, true] as bigint)),false), [plan_id=2389]
+
+(19) BroadcastQueryStage
+Output [1]: [DOLocationID#1115]
+Arguments: 2
+
+(20) BroadcastHashJoin [codegen id : 3]
+Left keys [1]: [DOLocationID#8]
+Right keys [1]: [DOLocationID#1115]
+Join type: LeftOuter
+Join condition: None
+
+(21) Project [codegen id : 3]
+Output [4]: [trip_distance#4, fare_amount#10, tip_pct#337, pu_borough#1112]
+Input [6]: [trip_distance#4, DOLocationID#8, fare_amount#10, tip_pct#337, pu_borough#1112, DOLocationID#1115]
+
+(22) HashAggregate [codegen id : 3]
+Input [4]: [trip_distance#4, fare_amount#10, tip_pct#337, pu_borough#1112]
+Keys [1]: [pu_borough#1112]
+Functions [4]: [partial_count(1), partial_avg(fare_amount#10), partial_avg(tip_pct#337), partial_avg(trip_distance#4)]
+Aggregate Attributes [7]: [count#2026L, sum#2027, count#2028L, sum#2029, count#2030L, sum#2031, count#2032L]
+Results [8]: [pu_borough#1112, count#2033L, sum#2034, count#2035L, sum#2036, count#2037L, sum#2038, count#2039L]
+
+(23) Exchange
+Input [8]: [pu_borough#1112, count#2033L, sum#2034, count#2035L, sum#2036, count#2037L, sum#2038, count#2039L]
+Arguments: hashpartitioning(pu_borough#1112, 8), ENSURE_REQUIREMENTS, [plan_id=2521]
+
+(24) ShuffleQueryStage
+Output [8]: [pu_borough#1112, count#2033L, sum#2034, count#2035L, sum#2036, count#2037L, sum#2038, count#2039L]
+Arguments: 3
+
+(25) AQEShuffleRead
+Input [8]: [pu_borough#1112, count#2033L, sum#2034, count#2035L, sum#2036, count#2037L, sum#2038, count#2039L]
+Arguments: coalesced
+
+(26) HashAggregate [codegen id : 4]
+Input [8]: [pu_borough#1112, count#2033L, sum#2034, count#2035L, sum#2036, count#2037L, sum#2038, count#2039L]
+Keys [1]: [pu_borough#1112]
+Functions [4]: [count(1), avg(fare_amount#10), avg(tip_pct#337), avg(trip_distance#4)]
+Aggregate Attributes [4]: [count(1)#1657L, avg(fare_amount#10)#1658, avg(tip_pct#337)#1659, avg(trip_distance#4)#1660]
+Results [5]: [pu_borough#1112, count(1)#1657L AS trips#1625L, round(avg(fare_amount#10)#1658, 2) AS avg_fare#1626, round(avg(tip_pct#337)#1659, 1) AS avg_tip_pct#1627, round(avg(trip_distance#4)#1660, 2) AS avg_miles#1628]
+
+(27) Exchange
+Input [5]: [pu_borough#1112, trips#1625L, avg_fare#1626, avg_tip_pct#1627, avg_miles#1628]
+Arguments: rangepartitioning(trips#1625L DESC NULLS LAST, 8), ENSURE_REQUIREMENTS, [plan_id=2558]
+
+(28) ShuffleQueryStage
+Output [5]: [pu_borough#1112, trips#1625L, avg_fare#1626, avg_tip_pct#1627, avg_miles#1628]
+Arguments: 4
+
+(29) AQEShuffleRead
+Input [5]: [pu_borough#1112, trips#1625L, avg_fare#1626, avg_tip_pct#1627, avg_miles#1628]
+Arguments: coalesced
+
+(30) Sort [codegen id : 5]
+Input [5]: [pu_borough#1112, trips#1625L, avg_fare#1626, avg_tip_pct#1627, avg_miles#1628]
+Arguments: [trips#1625L DESC NULLS LAST], true, 0
+
+(31) ResultQueryStage
+Output [5]: [pu_borough#1112, trips#1625L, avg_fare#1626, avg_tip_pct#1627, avg_miles#1628]
+Arguments: 5
+
+(32) Filter
+Input [2]: [LocationID#118, Borough#119]
+Condition : isnotnull(LocationID#118)
+
+(33) Project
+Output [2]: [LocationID#118 AS PULocationID#1111, Borough#119 AS pu_borough#1112]
+Input [2]: [LocationID#118, Borough#119]
+
+(34) BroadcastExchange
+Input [2]: [PULocationID#1111, pu_borough#1112]
+Arguments: HashedRelationBroadcastMode(List(cast(input[0, int, true] as bigint)),false), [plan_id=2326]
+
+(35) BroadcastHashJoin
+Left keys [1]: [PULocationID#7]
+Right keys [1]: [PULocationID#1111]
+Join type: LeftOuter
+Join condition: None
+
+(36) Project
+Output [5]: [trip_distance#4, DOLocationID#8, fare_amount#10, tip_pct#337, pu_borough#1112]
+Input [7]: [trip_distance#4, PULocationID#7, DOLocationID#8, fare_amount#10, tip_pct#337, PULocationID#1111, pu_borough#1112]
+
+(37) Filter
+Input [1]: [LocationID#1118]
+Condition : isnotnull(LocationID#1118)
+
+(38) Project
+Output [1]: [LocationID#1118 AS DOLocationID#1115]
+Input [1]: [LocationID#1118]
+
+(39) BroadcastExchange
+Input [1]: [DOLocationID#1115]
+Arguments: HashedRelationBroadcastMode(List(cast(input[0, int, true] as bigint)),false), [plan_id=2330]
+
+(40) BroadcastHashJoin
+Left keys [1]: [DOLocationID#8]
+Right keys [1]: [DOLocationID#1115]
+Join type: LeftOuter
+Join condition: None
+
+(41) Project
+Output [4]: [trip_distance#4, fare_amount#10, tip_pct#337, pu_borough#1112]
+Input [6]: [trip_distance#4, DOLocationID#8, fare_amount#10, tip_pct#337, pu_borough#1112, DOLocationID#1115]
+
+(42) HashAggregate
+Input [4]: [trip_distance#4, fare_amount#10, tip_pct#337, pu_borough#1112]
+Keys [1]: [pu_borough#1112]
+Functions [4]: [partial_count(1), partial_avg(fare_amount#10), partial_avg(tip_pct#337), partial_avg(trip_distance#4)]
+Aggregate Attributes [7]: [count#2026L, sum#2027, count#2028L, sum#2029, count#2030L, sum#2031, count#2032L]
+Results [8]: [pu_borough#1112, count#2033L, sum#2034, count#2035L, sum#2036, count#2037L, sum#2038, count#2039L]
+
+(43) Exchange
+Input [8]: [pu_borough#1112, count#2033L, sum#2034, count#2035L, sum#2036, count#2037L, sum#2038, count#2039L]
+Arguments: hashpartitioning(pu_borough#1112, 8), ENSURE_REQUIREMENTS, [plan_id=2335]
+
+(44) HashAggregate
+Input [8]: [pu_borough#1112, count#2033L, sum#2034, count#2035L, sum#2036, count#2037L, sum#2038, count#2039L]
+Keys [1]: [pu_borough#1112]
+Functions [4]: [count(1), avg(fare_amount#10), avg(tip_pct#337), avg(trip_distance#4)]
+Aggregate Attributes [4]: [count(1)#1657L, avg(fare_amount#10)#1658, avg(tip_pct#337)#1659, avg(trip_distance#4)#1660]
+Results [5]: [pu_borough#1112, count(1)#1657L AS trips#1625L, round(avg(fare_amount#10)#1658, 2) AS avg_fare#1626, round(avg(tip_pct#337)#1659, 1) AS avg_tip_pct#1627, round(avg(trip_distance#4)#1660, 2) AS avg_miles#1628]
+
+(45) Exchange
+Input [5]: [pu_borough#1112, trips#1625L, avg_fare#1626, avg_tip_pct#1627, avg_miles#1628]
+Arguments: rangepartitioning(trips#1625L DESC NULLS LAST, 8), ENSURE_REQUIREMENTS, [plan_id=2338]
+
+(46) Sort
+Input [5]: [pu_borough#1112, trips#1625L, avg_fare#1626, avg_tip_pct#1627, avg_miles#1628]
+Arguments: [trips#1625L DESC NULLS LAST], true, 0
+
+(47) AdaptiveSparkPlan
+Output [5]: [pu_borough#1112, trips#1625L, avg_fare#1626, avg_tip_pct#1627, avg_miles#1628]
+Arguments: isFinalPlan=true
+
+
+
+================================================================================
+10. Write partitioned Parquet and read it back
+================================================================================
+write (repartition=True) took 8.2 s
+partitions (dates) written: 31
+trips on 2024-01-15: 74743
+== Physical Plan ==
+* ColumnarToRow (2)
++- Scan parquet  (1)
+
+
+(1) Scan parquet 
+Output [27]: [DOLocationID#6834, PULocationID#6835, VendorID#6836, tpep_pickup_datetime#6837, tpep_dropoff_datetime#6838, passenger_count#6839L, trip_distance#6840, RatecodeID#6841L, store_and_fwd_flag#6842, payment_type#6843L, fare_amount#6844, extra#6845, mta_tax#6846, tip_amount#6847, tolls_amount#6848, improvement_surcharge#6849, total_amount#6850, congestion_surcharge#6851, Airport_fee#6852, duration_min#6853, pickup_hour#6854, tip_pct#6855, pu_borough#6856, pu_zone#6857, do_borough#6858, do_zone#6859, pickup_date#6860]
+Batched: true
+Location: InMemoryFileIndex [file:/lab/output/trips_clean]
+PartitionFilters: [isnotnull(pickup_date#6860), (pickup_date#6860 = 2024-01-15)]
+ReadSchema: struct<DOLocationID:int,PULocationID:int,VendorID:int,tpep_pickup_datetime:timestamp_ntz,tpep_dropoff_datetime:timestamp_ntz,passenger_count:bigint,trip_distance:double,RatecodeID:bigint,store_and_fwd_flag:string,payment_type:bigint,fare_amount:double,extra:double,mta_tax:double,tip_amount:double,tolls_amount:double,improvement_surcharge:double,total_amount:double,congestion_surcharge:double,Airport_fee:double,duration_min:double,pickup_hour:int,tip_pct:double,pu_borough:string,pu_zone:string,do_borough:string,do_zone:string>
+
+(2) ColumnarToRow [codegen id : 1]
+Input [27]: [DOLocationID#6834, PULocationID#6835, VendorID#6836, tpep_pickup_datetime#6837, tpep_dropoff_datetime#6838, passenger_count#6839L, trip_distance#6840, RatecodeID#6841L, store_and_fwd_flag#6842, payment_type#6843L, fare_amount#6844, extra#6845, mta_tax#6846, tip_amount#6847, tolls_amount#6848, improvement_surcharge#6849, total_amount#6850, congestion_surcharge#6851, Airport_fee#6852, duration_min#6853, pickup_hour#6854, tip_pct#6855, pu_borough#6856, pu_zone#6857, do_borough#6858, do_zone#6859, pickup_date#6860]
+
+
+
+Holding for 300 s -- open http://localhost:4040 (Ctrl-C to stop)
+Command exited with non-zero status 137
+WALL 213.90 s

@@ -1,0 +1,96 @@
+$ hadoop jar hadoop-streaming.jar -files mapper.py,reducer.py -mapper "python3 mapper.py" -reducer "python3 reducer.py" -input /user/root/books -output /user/root/wc_out
+2026-10-30 10:24:35,422 INFO client.DefaultNoHARMFailoverProxyProvider: Connecting to ResourceManager at resourcemanager/172.29.0.8:8032
+2026-10-30 10:24:35,562 INFO client.DefaultNoHARMFailoverProxyProvider: Connecting to ResourceManager at resourcemanager/172.29.0.8:8032
+2026-10-30 10:24:35,795 INFO mapreduce.JobResourceUploader: Disabling Erasure Coding for path: /tmp/hadoop-yarn/staging/root/.staging/job_1793355278127_0001
+2026-10-30 10:24:36,211 INFO mapred.FileInputFormat: Total input files to process : 4
+2026-10-30 10:24:36,287 INFO mapreduce.JobSubmitter: number of splits:4
+2026-10-30 10:24:36,434 INFO mapreduce.JobSubmitter: Submitting tokens for job: job_1793355278127_0001
+2026-10-30 10:24:36,435 INFO mapreduce.JobSubmitter: Executing with tokens: []
+2026-10-30 10:24:36,575 INFO conf.Configuration: resource-types.xml not found
+2026-10-30 10:24:36,575 INFO resource.ResourceUtils: Unable to find 'resource-types.xml'.
+2026-10-30 10:24:36,966 INFO impl.YarnClientImpl: Submitted application application_1793355278127_0001
+2026-10-30 10:24:36,998 INFO mapreduce.Job: The url to track the job: http://resourcemanager:8088/proxy/application_1793355278127_0001/
+2026-10-30 10:24:36,999 INFO mapreduce.Job: Running job: job_1793355278127_0001
+2026-10-30 10:24:44,094 INFO mapreduce.Job: Job job_1793355278127_0001 running in uber mode : false
+2026-10-30 10:24:44,094 INFO mapreduce.Job:  map 0% reduce 0%
+2026-10-30 10:24:50,175 INFO mapreduce.Job:  map 50% reduce 0%
+2026-10-30 10:24:53,196 INFO mapreduce.Job:  map 75% reduce 0%
+2026-10-30 10:24:54,203 INFO mapreduce.Job:  map 100% reduce 0%
+2026-10-30 10:24:57,221 INFO mapreduce.Job:  map 100% reduce 100%
+2026-10-30 10:24:57,231 INFO mapreduce.Job: Job job_1793355278127_0001 completed successfully
+2026-10-30 10:24:57,316 INFO mapreduce.Job: Counters: 54
+	File System Counters
+		FILE: Number of bytes read=4334053
+		FILE: Number of bytes written=10247564
+		FILE: Number of read operations=0
+		FILE: Number of large read operations=0
+		FILE: Number of write operations=0
+		HDFS: Number of bytes read=2672289
+		HDFS: Number of bytes written=226341
+		HDFS: Number of read operations=17
+		HDFS: Number of large read operations=0
+		HDFS: Number of write operations=2
+		HDFS: Number of bytes read erasure-coded=0
+	Job Counters 
+		Launched map tasks=4
+		Launched reduce tasks=1
+		Rack-local map tasks=4
+		Total time spent by all maps in occupied slots (ms)=31386
+		Total time spent by all reduces in occupied slots (ms)=8520
+		Total time spent by all map tasks (ms)=10462
+		Total time spent by all reduce tasks (ms)=2840
+		Total vcore-milliseconds taken by all map tasks=10462
+		Total vcore-milliseconds taken by all reduce tasks=2840
+		Total megabyte-milliseconds taken by all map tasks=4017408
+		Total megabyte-milliseconds taken by all reduce tasks=1090560
+	Map-Reduce Framework
+		Map input records=48749
+		Map output records=462618
+		Map output bytes=3408811
+		Map output materialized bytes=4334071
+		Input split bytes=392
+		Combine input records=0
+		Combine output records=0
+		Reduce input groups=20967
+		Reduce shuffle bytes=4334071
+		Reduce input records=462618
+		Reduce output records=20967
+		Spilled Records=925236
+		Shuffled Maps =4
+		Failed Shuffles=0
+		Merged Map outputs=4
+		GC time elapsed (ms)=38
+		CPU time spent (ms)=7010
+		Physical memory (bytes) snapshot=1488793600
+		Virtual memory (bytes) snapshot=10993786880
+		Total committed heap usage (bytes)=1509949440
+		Peak Map Physical memory (bytes)=314687488
+		Peak Map Virtual memory (bytes)=2199056384
+		Peak Reduce Physical memory (bytes)=266272768
+		Peak Reduce Virtual memory (bytes)=2203533312
+	Shuffle Errors
+		BAD_ID=0
+		CONNECTION=0
+		IO_ERROR=0
+		WRONG_LENGTH=0
+		WRONG_MAP=0
+		WRONG_REDUCE=0
+	File Input Format Counters 
+		Bytes Read=2671897
+	File Output Format Counters 
+		Bytes Written=226341
+2026-10-30 10:24:57,316 INFO streaming.StreamJob: Output directory: /user/root/wc_out
+$ hdfs dfs -ls /user/root/wc_out
+
+real	0m23.572s
+user	0m5.369s
+sys	0m0.522s
+Found 2 items
+-rw-r--r--   3 root supergroup          0 2026-10-30 10:24 /user/root/wc_out/_SUCCESS
+-rw-r--r--   3 root supergroup     226341 2026-10-30 10:24 /user/root/wc_out/part-00000
+$ hdfs dfs -cat /user/root/wc_out/part-* | sort -t$'\t' -k2,2nr | head -5
+the	25806
+and	14340
+of	14113
+to	12103
+a	9045

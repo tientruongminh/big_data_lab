@@ -1,0 +1,372 @@
+Connecting to jdbc:hive2://localhost:10000/
+Connected to: Apache Hive (version 4.2.1)
+Driver: Hive JDBC (version 4.2.1)
+Transaction isolation: TRANSACTION_REPEATABLE_READ
+INFO  : Compiling command(queryId=hive_20261030103140_663a447d-ec1b-4ffb-b89b-7a3d399f123c): CREATE DATABASE IF NOT EXISTS taxi
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:null, properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103140_663a447d-ec1b-4ffb-b89b-7a3d399f123c); Time taken: 1.025 seconds
+INFO  : Executing command(queryId=hive_20261030103140_663a447d-ec1b-4ffb-b89b-7a3d399f123c): CREATE DATABASE IF NOT EXISTS taxi
+INFO  : Starting task [Stage-0:DDL] in serial mode
+INFO  : Completed executing command(queryId=hive_20261030103140_663a447d-ec1b-4ffb-b89b-7a3d399f123c); Time taken: 0.503 seconds
+No rows affected (1.698 seconds)
+INFO  : Compiling command(queryId=hive_20261030103142_4bbdb264-98e8-4d5e-a873-c4c062c9eaf4): USE taxi
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:null, properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103142_4bbdb264-98e8-4d5e-a873-c4c062c9eaf4); Time taken: 0.01 seconds
+INFO  : Executing command(queryId=hive_20261030103142_4bbdb264-98e8-4d5e-a873-c4c062c9eaf4): USE taxi
+INFO  : Starting task [Stage-0:DDL] in serial mode
+INFO  : Completed executing command(queryId=hive_20261030103142_4bbdb264-98e8-4d5e-a873-c4c062c9eaf4); Time taken: 0.01 seconds
+No rows affected (0.031 seconds)
+INFO  : Compiling command(queryId=hive_20261030103142_8e51e558-ae9b-47a2-83d9-f76f442c7c0d): DROP TABLE IF EXISTS trips_csv
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:null, properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103142_8e51e558-ae9b-47a2-83d9-f76f442c7c0d); Time taken: 0.024 seconds
+INFO  : Executing command(queryId=hive_20261030103142_8e51e558-ae9b-47a2-83d9-f76f442c7c0d): DROP TABLE IF EXISTS trips_csv
+INFO  : Starting task [Stage-0:DDL] in serial mode
+INFO  : Completed executing command(queryId=hive_20261030103142_8e51e558-ae9b-47a2-83d9-f76f442c7c0d); Time taken: 0.006 seconds
+No rows affected (0.037 seconds)
+INFO  : Compiling command(queryId=hive_20261030103142_b4805550-c84d-4265-9327-dbd0c0512bc8): CREATE EXTERNAL TABLE trips_csv (
+  vendorid              INT,
+  tpep_pickup_datetime  TIMESTAMP,
+  tpep_dropoff_datetime TIMESTAMP,
+  passenger_count       BIGINT,
+  trip_distance         DOUBLE,
+  ratecodeid            BIGINT,
+  store_and_fwd_flag    STRING,
+  pulocationid          INT,
+  dolocationid          INT,
+  payment_type          BIGINT,
+  fare_amount           DOUBLE,
+  extra                 DOUBLE,
+  mta_tax               DOUBLE,
+  tip_amount            DOUBLE,
+  tolls_amount          DOUBLE,
+  improvement_surcharge DOUBLE,
+  total_amount          DOUBLE,
+  congestion_surcharge  DOUBLE,
+  airport_fee           DOUBLE
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+STORED AS TEXTFILE
+LOCATION '/data/taxi_csv'
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:null, properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103142_b4805550-c84d-4265-9327-dbd0c0512bc8); Time taken: 0.06 seconds
+INFO  : Executing command(queryId=hive_20261030103142_b4805550-c84d-4265-9327-dbd0c0512bc8): CREATE EXTERNAL TABLE trips_csv (
+  vendorid              INT,
+  tpep_pickup_datetime  TIMESTAMP,
+  tpep_dropoff_datetime TIMESTAMP,
+  passenger_count       BIGINT,
+  trip_distance         DOUBLE,
+  ratecodeid            BIGINT,
+  store_and_fwd_flag    STRING,
+  pulocationid          INT,
+  dolocationid          INT,
+  payment_type          BIGINT,
+  fare_amount           DOUBLE,
+  extra                 DOUBLE,
+  mta_tax               DOUBLE,
+  tip_amount            DOUBLE,
+  tolls_amount          DOUBLE,
+  improvement_surcharge DOUBLE,
+  total_amount          DOUBLE,
+  congestion_surcharge  DOUBLE,
+  airport_fee           DOUBLE
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+STORED AS TEXTFILE
+LOCATION '/data/taxi_csv'
+INFO  : Starting task [Stage-0:DDL] in serial mode
+INFO  : Completed executing command(queryId=hive_20261030103142_b4805550-c84d-4265-9327-dbd0c0512bc8); Time taken: 0.242 seconds
+No rows affected (0.313 seconds)
+INFO  : Compiling command(queryId=hive_20261030103142_5e968a5b-1632-4679-b398-ec781051a4d3): DROP TABLE IF EXISTS zones
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:null, properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103142_5e968a5b-1632-4679-b398-ec781051a4d3); Time taken: 0.008 seconds
+INFO  : Executing command(queryId=hive_20261030103142_5e968a5b-1632-4679-b398-ec781051a4d3): DROP TABLE IF EXISTS zones
+INFO  : Starting task [Stage-0:DDL] in serial mode
+INFO  : Completed executing command(queryId=hive_20261030103142_5e968a5b-1632-4679-b398-ec781051a4d3); Time taken: 0.005 seconds
+No rows affected (0.021 seconds)
+INFO  : Compiling command(queryId=hive_20261030103142_ea5709d2-a714-43dc-9eb5-9ba4c66f484b): CREATE EXTERNAL TABLE zones (
+  locationid   STRING,
+  borough      STRING,
+  zone         STRING,
+  service_zone STRING
+)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+STORED AS TEXTFILE
+LOCATION '/data/zones'
+TBLPROPERTIES ('skip.header.line.count' = '1')
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:null, properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103142_ea5709d2-a714-43dc-9eb5-9ba4c66f484b); Time taken: 0.006 seconds
+INFO  : Executing command(queryId=hive_20261030103142_ea5709d2-a714-43dc-9eb5-9ba4c66f484b): CREATE EXTERNAL TABLE zones (
+  locationid   STRING,
+  borough      STRING,
+  zone         STRING,
+  service_zone STRING
+)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+STORED AS TEXTFILE
+LOCATION '/data/zones'
+TBLPROPERTIES ('skip.header.line.count' = '1')
+INFO  : Starting task [Stage-0:DDL] in serial mode
+INFO  : Completed executing command(queryId=hive_20261030103142_ea5709d2-a714-43dc-9eb5-9ba4c66f484b); Time taken: 0.036 seconds
+No rows affected (0.051 seconds)
+INFO  : Compiling command(queryId=hive_20261030103142_6855c171-a038-4d9f-97f2-fce8a933f34c): SHOW TABLES
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:[FieldSchema(name:tab_name, type:string, comment:from deserializer)], properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103142_6855c171-a038-4d9f-97f2-fce8a933f34c); Time taken: 0.041 seconds
+INFO  : Executing command(queryId=hive_20261030103142_6855c171-a038-4d9f-97f2-fce8a933f34c): SHOW TABLES
+INFO  : Starting task [Stage-0:DDL] in serial mode
+INFO  : Completed executing command(queryId=hive_20261030103142_6855c171-a038-4d9f-97f2-fce8a933f34c); Time taken: 0.049 seconds
++------------+
+|  tab_name  |
++------------+
+| trips_csv  |
+| zones      |
++------------+
+2 rows selected (0.18 seconds)
+INFO  : Compiling command(queryId=hive_20261030103142_3c5daebe-2bb1-4c69-96a2-b539e749d83e): SELECT * FROM trips_csv LIMIT 3
+INFO  : No Stats for taxi@trips_csv, Columns: fare_amount, tpep_dropoff_datetime, congestion_surcharge, vendorid, passenger_count, tolls_amount, improvement_surcharge, trip_distance, dolocationid, pulocationid, store_and_fwd_flag, payment_type, ratecodeid, total_amount, extra, tip_amount, mta_tax, airport_fee, tpep_pickup_datetime
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:[FieldSchema(name:trips_csv.vendorid, type:int, comment:null), FieldSchema(name:trips_csv.tpep_pickup_datetime, type:timestamp, comment:null), FieldSchema(name:trips_csv.tpep_dropoff_datetime, type:timestamp, comment:null), FieldSchema(name:trips_csv.passenger_count, type:bigint, comment:null), FieldSchema(name:trips_csv.trip_distance, type:double, comment:null), FieldSchema(name:trips_csv.ratecodeid, type:bigint, comment:null), FieldSchema(name:trips_csv.store_and_fwd_flag, type:string, comment:null), FieldSchema(name:trips_csv.pulocationid, type:int, comment:null), FieldSchema(name:trips_csv.dolocationid, type:int, comment:null), FieldSchema(name:trips_csv.payment_type, type:bigint, comment:null), FieldSchema(name:trips_csv.fare_amount, type:double, comment:null), FieldSchema(name:trips_csv.extra, type:double, comment:null), FieldSchema(name:trips_csv.mta_tax, type:double, comment:null), FieldSchema(name:trips_csv.tip_amount, type:double, comment:null), FieldSchema(name:trips_csv.tolls_amount, type:double, comment:null), FieldSchema(name:trips_csv.improvement_surcharge, type:double, comment:null), FieldSchema(name:trips_csv.total_amount, type:double, comment:null), FieldSchema(name:trips_csv.congestion_surcharge, type:double, comment:null), FieldSchema(name:trips_csv.airport_fee, type:double, comment:null)], properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103142_3c5daebe-2bb1-4c69-96a2-b539e749d83e); Time taken: 1.28 seconds
+INFO  : Executing command(queryId=hive_20261030103142_3c5daebe-2bb1-4c69-96a2-b539e749d83e): SELECT * FROM trips_csv LIMIT 3
+INFO  : Query ID = hive_20261030103142_3c5daebe-2bb1-4c69-96a2-b539e749d83e
+INFO  : Total jobs = 1
+INFO  : Launching Job 1 out of 1
+INFO  : Starting task [Stage-1:MAPRED] in serial mode
+INFO  : Subscribed to counters: [] for queryId: hive_20261030103142_3c5daebe-2bb1-4c69-96a2-b539e749d83e
+INFO  : Tez session hasn't been created yet. Opening session
+INFO  : Dag name: SELECT * FROM trips_csv LIMIT 3 (Stage-1)
+INFO  : HS2 Host: [hiveserver2], Query ID: [hive_20261030103142_3c5daebe-2bb1-4c69-96a2-b539e749d83e], Dag ID: [dag_1793356304953_0001_1], DAG App ID: [application_1793356304953_0001], DAG App address: [hiveserver2]
+INFO  : Status: Running (Executing on YARN cluster with App id application_1793356304953_0001)
+INFO  : 2026-10-30 10:31:46,541	Map 1: -/-	
+INFO  : 2026-10-30 10:31:47,046	Map 1: 0/2	
+INFO  : 2026-10-30 10:31:47,549	Map 1: 0(+1)/2	
+INFO  : 2026-10-30 10:31:48,052	Map 1: 1(+1)/2	
+INFO  : 2026-10-30 10:31:48,950	Map 1: 2/2	
+INFO  : Status: DAG finished successfully in 2.42 seconds
+INFO  : DAG ID: dag_1793356304953_0001_1
+INFO  : 
+INFO  : Query Execution Summary
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : OPERATION                            DURATION
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : Compile Query                           1.28s
+INFO  : Prepare Plan                            2.07s
+INFO  : Get Query Coordinator (AM)              0.01s
+INFO  : Submit Plan                             0.20s
+INFO  : Start DAG                               0.04s
+INFO  : Run DAG                                 2.42s
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : 
+INFO  : Task Execution Summary
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :   VERTICES      DURATION(ms)   CPU_TIME(ms)    GC_TIME(ms)   INPUT_RECORDS   OUTPUT_RECORDS
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :      Map 1           1401.00              0              0           4,096                0
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : FileSystem Counters Summary
+INFO  : 
+INFO  : Scheme: HDFS
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :   VERTICES      BYTES_READ      READ_OPS     LARGE_READ_OPS      BYTES_WRITTEN     WRITE_OPS
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :      Map 1              0B             0                  0                 0B             0
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : 
+INFO  : Scheme: FILE
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :   VERTICES      BYTES_READ      READ_OPS     LARGE_READ_OPS      BYTES_WRITTEN     WRITE_OPS
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :      Map 1              0B             0                  0                 0B             0
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : 
+INFO  : org.apache.tez.common.counters.DAGCounter:
+INFO  :    NUM_SUCCEEDED_TASKS: 2
+INFO  :    TOTAL_LAUNCHED_TASKS: 2
+INFO  :    DURATION_SUCCEEDED_TASKS_MILLIS: 1132
+INFO  :    RACK_LOCAL_TASKS: 2
+INFO  :    AM_CPU_MILLISECONDS: 3250
+INFO  :    WALL_CLOCK_MILLIS: 1132
+INFO  :    AM_GC_TIME_MILLIS: 0
+INFO  :    INITIAL_HELD_CONTAINERS: 0
+INFO  :    TOTAL_CONTAINERS_USED: 2
+INFO  :    TOTAL_CONTAINER_LAUNCH_COUNT: 2
+INFO  :    TOTAL_CONTAINER_RELEASE_COUNT: 2
+INFO  :    NODE_USED_COUNT: 1
+INFO  :    NODE_TOTAL_COUNT: 1
+INFO  : org.apache.tez.common.counters.TaskCounter:
+INFO  :    INPUT_RECORDS_PROCESSED: 4100
+INFO  :    INPUT_SPLIT_LENGTH_BYTES: 274217811
+INFO  :    OUTPUT_RECORDS: 0
+INFO  : HIVE:
+INFO  :    CREATED_FILES: 2
+INFO  :    DESERIALIZE_ERRORS: 0
+INFO  :    RECORDS_IN_Map_1: 4096
+INFO  :    RECORDS_OUT_0: 6
+INFO  :    RECORDS_OUT_INTERMEDIATE_Map_1: 0
+INFO  :    RECORDS_OUT_OPERATOR_FS_6: 6
+INFO  :    RECORDS_OUT_OPERATOR_LIM_4: 6
+INFO  :    RECORDS_OUT_OPERATOR_MAP_0: 0
+INFO  :    RECORDS_OUT_OPERATOR_SEL_5: 6
+INFO  :    RECORDS_OUT_OPERATOR_TS_0: 4096
+INFO  : org.apache.hadoop.hive.ql.exec.tez.HiveInputCounters:
+INFO  :    GROUPED_INPUT_SPLITS_Map_1: 2
+INFO  :    INPUT_DIRECTORIES_Map_1: 1
+INFO  :    INPUT_FILES_Map_1: 1
+INFO  :    RAW_INPUT_SPLITS_Map_1: 2
+INFO  : Completed executing command(queryId=hive_20261030103142_3c5daebe-2bb1-4c69-96a2-b539e749d83e); Time taken: 4.789 seconds
++---------------------+---------------------------------+----------------------------------+----------------------------+--------------------------+-----------------------+-------------------------------+-------------------------+-------------------------+-------------------------+------------------------+------------------+--------------------+-----------------------+-------------------------+----------------------------------+-------------------------+---------------------------------+------------------------+
+| trips_csv.vendorid  | trips_csv.tpep_pickup_datetime  | trips_csv.tpep_dropoff_datetime  | trips_csv.passenger_count  | trips_csv.trip_distance  | trips_csv.ratecodeid  | trips_csv.store_and_fwd_flag  | trips_csv.pulocationid  | trips_csv.dolocationid  | trips_csv.payment_type  | trips_csv.fare_amount  | trips_csv.extra  | trips_csv.mta_tax  | trips_csv.tip_amount  | trips_csv.tolls_amount  | trips_csv.improvement_surcharge  | trips_csv.total_amount  | trips_csv.congestion_surcharge  | trips_csv.airport_fee  |
++---------------------+---------------------------------+----------------------------------+----------------------------+--------------------------+-----------------------+-------------------------------+-------------------------+-------------------------+-------------------------+------------------------+------------------+--------------------+-----------------------+-------------------------+----------------------------------+-------------------------+---------------------------------+------------------------+
+| 2                   | 2024-01-01 00:57:55.0           | 2024-01-01 01:17:43.0            | 1                          | 1.72                     | 1                     | N                             | 186                     | 79                      | 2                       | 17.7                   | 1.0              | 0.5                | 0.0                   | 0.0                     | 1.0                              | 22.7                    | 2.5                             | 0.0                    |
+| 1                   | 2024-01-01 00:03:00.0           | 2024-01-01 00:09:36.0            | 1                          | 1.8                      | 1                     | N                             | 140                     | 236                     | 1                       | 10.0                   | 3.5              | 0.5                | 3.75                  | 0.0                     | 1.0                              | 18.75                   | 2.5                             | 0.0                    |
+| 1                   | 2024-01-01 00:17:06.0           | 2024-01-01 00:35:01.0            | 1                          | 4.7                      | 1                     | N                             | 236                     | 79                      | 1                       | 23.3                   | 3.5              | 0.5                | 3.0                   | 0.0                     | 1.0                              | 31.3                    | 2.5                             | 0.0                    |
++---------------------+---------------------------------+----------------------------------+----------------------------+--------------------------+-----------------------+-------------------------------+-------------------------+-------------------------+-------------------------+------------------------+------------------+--------------------+-----------------------+-------------------------+----------------------------------+-------------------------+---------------------------------+------------------------+
+3 rows selected (6.143 seconds)
+INFO  : Compiling command(queryId=hive_20261030103149_d142b304-4ebf-46ec-bd8e-412552f124a4): SELECT * FROM zones LIMIT 3
+INFO  : No Stats for taxi@zones, Columns: zone, locationid, borough, service_zone
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:[FieldSchema(name:zones.locationid, type:string, comment:null), FieldSchema(name:zones.borough, type:string, comment:null), FieldSchema(name:zones.zone, type:string, comment:null), FieldSchema(name:zones.service_zone, type:string, comment:null)], properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103149_d142b304-4ebf-46ec-bd8e-412552f124a4); Time taken: 0.241 seconds
+INFO  : Executing command(queryId=hive_20261030103149_d142b304-4ebf-46ec-bd8e-412552f124a4): SELECT * FROM zones LIMIT 3
+INFO  : Completed executing command(queryId=hive_20261030103149_d142b304-4ebf-46ec-bd8e-412552f124a4); Time taken: 0.001 seconds
++-------------------+----------------+--------------------------+---------------------+
+| zones.locationid  | zones.borough  |        zones.zone        | zones.service_zone  |
++-------------------+----------------+--------------------------+---------------------+
+| 1                 | EWR            | Newark Airport           | EWR                 |
+| 2                 | Queens         | Jamaica Bay              | Boro Zone           |
+| 3                 | Bronx          | Allerton/Pelham Gardens  | Boro Zone           |
++-------------------+----------------+--------------------------+---------------------+
+3 rows selected (0.272 seconds)
+INFO  : Compiling command(queryId=hive_20261030103149_86ca0fbb-5185-4277-ab01-9e41ed3eed34): SELECT count(*) AS csv_rows FROM trips_csv
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:[FieldSchema(name:csv_rows, type:bigint, comment:null)], properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103149_86ca0fbb-5185-4277-ab01-9e41ed3eed34); Time taken: 0.187 seconds
+INFO  : Executing command(queryId=hive_20261030103149_86ca0fbb-5185-4277-ab01-9e41ed3eed34): SELECT count(*) AS csv_rows FROM trips_csv
+INFO  : Query ID = hive_20261030103149_86ca0fbb-5185-4277-ab01-9e41ed3eed34
+INFO  : Total jobs = 1
+INFO  : Launching Job 1 out of 1
+INFO  : Starting task [Stage-1:MAPRED] in serial mode
+INFO  : Subscribed to counters: [] for queryId: hive_20261030103149_86ca0fbb-5185-4277-ab01-9e41ed3eed34
+INFO  : Session is already open
+INFO  : Dag name: SELECT count(*) AS csv_rows FROM trips_csv (Stage-1)
+INFO  : HS2 Host: [hiveserver2], Query ID: [hive_20261030103149_86ca0fbb-5185-4277-ab01-9e41ed3eed34], Dag ID: [dag_1793356304953_0001_2], DAG App ID: [application_1793356304953_0001], DAG App address: [hiveserver2]
+INFO  : Status: Running (Executing on YARN cluster with App id application_1793356304953_0001)
+INFO  : 2026-10-30 10:31:49,702	Map 1: -/-	Reducer 2: 0/1	
+INFO  : 2026-10-30 10:31:50,209	Map 1: 0(+1)/2	Reducer 2: 0/1	
+INFO  : 2026-10-30 10:31:51,219	Map 1: 1(+0)/2	Reducer 2: 0/1	
+INFO  : 2026-10-30 10:31:51,727	Map 1: 1(+1)/2	Reducer 2: 0/1	
+INFO  : 2026-10-30 10:31:52,742	Map 1: 2/2	Reducer 2: 0/1	
+INFO  : 2026-10-30 10:31:53,248	Map 1: 2/2	Reducer 2: 0(+1)/1	
+INFO  : 2026-10-30 10:31:53,778	Map 1: 2/2	Reducer 2: 1/1	
+INFO  : Status: DAG finished successfully in 4.08 seconds
+INFO  : DAG ID: dag_1793356304953_0001_2
+INFO  : 
+INFO  : Query Execution Summary
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : OPERATION                            DURATION
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : Compile Query                           0.19s
+INFO  : Prepare Plan                            0.09s
+INFO  : Get Query Coordinator (AM)              0.00s
+INFO  : Submit Plan                             0.03s
+INFO  : Start DAG                               0.03s
+INFO  : Run DAG                                 4.08s
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : 
+INFO  : Task Execution Summary
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :   VERTICES      DURATION(ms)   CPU_TIME(ms)    GC_TIME(ms)   INPUT_RECORDS   OUTPUT_RECORDS
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :      Map 1           2532.00              0              0       2,964,624                2
+INFO  :  Reducer 2            530.00              0              0               2                0
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : FileSystem Counters Summary
+INFO  : 
+INFO  : Scheme: HDFS
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :   VERTICES      BYTES_READ      READ_OPS     LARGE_READ_OPS      BYTES_WRITTEN     WRITE_OPS
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :      Map 1              0B             0                  0                 0B             0
+INFO  :  Reducer 2              0B             0                  0                 0B             0
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : 
+INFO  : Scheme: FILE
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :   VERTICES      BYTES_READ      READ_OPS     LARGE_READ_OPS      BYTES_WRITTEN     WRITE_OPS
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :      Map 1              0B             0                  0                 0B             0
+INFO  :  Reducer 2              0B             0                  0                 0B             0
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : 
+INFO  : org.apache.tez.common.counters.DAGCounter:
+INFO  :    NUM_SUCCEEDED_TASKS: 3
+INFO  :    TOTAL_LAUNCHED_TASKS: 3
+INFO  :    DURATION_SUCCEEDED_TASKS_MILLIS: 2659
+INFO  :    RACK_LOCAL_TASKS: 2
+INFO  :    AM_CPU_MILLISECONDS: 5570
+INFO  :    WALL_CLOCK_MILLIS: 2659
+INFO  :    AM_GC_TIME_MILLIS: 69
+INFO  :    INITIAL_HELD_CONTAINERS: 0
+INFO  :    TOTAL_CONTAINERS_USED: 3
+INFO  :    TOTAL_CONTAINER_LAUNCH_COUNT: 3
+INFO  :    TOTAL_CONTAINER_RELEASE_COUNT: 3
+INFO  :    NODE_USED_COUNT: 1
+INFO  :    NODE_TOTAL_COUNT: 1
+INFO  : org.apache.tez.common.counters.TaskCounter:
+INFO  :    SPILLED_RECORDS: 0
+INFO  :    NUM_SHUFFLED_INPUTS: 0
+INFO  :    NUM_FAILED_SHUFFLE_INPUTS: 0
+INFO  :    INPUT_RECORDS_PROCESSED: 2964626
+INFO  :    INPUT_SPLIT_LENGTH_BYTES: 274217811
+INFO  :    OUTPUT_RECORDS: 2
+INFO  :    APPROXIMATE_INPUT_RECORDS: 2
+INFO  :    OUTPUT_LARGE_RECORDS: 0
+INFO  :    OUTPUT_BYTES: 12
+INFO  :    OUTPUT_BYTES_WITH_OVERHEAD: 28
+INFO  :    OUTPUT_BYTES_PHYSICAL: 84
+INFO  :    ADDITIONAL_SPILLS_BYTES_WRITTEN: 0
+INFO  :    ADDITIONAL_SPILLS_BYTES_READ: 0
+INFO  :    ADDITIONAL_SPILL_COUNT: 0
+INFO  :    SHUFFLE_BYTES: 0
+INFO  :    SHUFFLE_BYTES_DECOMPRESSED: 0
+INFO  :    SHUFFLE_BYTES_TO_MEM: 0
+INFO  :    SHUFFLE_BYTES_TO_DISK: 0
+INFO  :    SHUFFLE_BYTES_DISK_DIRECT: 0
+INFO  :    SHUFFLE_PHASE_TIME: 29
+INFO  :    FIRST_EVENT_RECEIVED: 27
+INFO  :    LAST_EVENT_RECEIVED: 29
+INFO  :    DATA_BYTES_VIA_EVENT: 36
+INFO  : HIVE:
+INFO  :    CREATED_FILES: 1
+INFO  :    DESERIALIZE_ERRORS: 0
+INFO  :    RECORDS_IN_Map_1: 2964624
+INFO  :    RECORDS_OUT_0: 1
+INFO  :    RECORDS_OUT_INTERMEDIATE_Map_1: 2
+INFO  :    RECORDS_OUT_INTERMEDIATE_Reducer_2: 0
+INFO  :    RECORDS_OUT_OPERATOR_FS_11: 1
+INFO  :    RECORDS_OUT_OPERATOR_GBY_10: 1
+INFO  :    RECORDS_OUT_OPERATOR_GBY_8: 2
+INFO  :    RECORDS_OUT_OPERATOR_MAP_0: 0
+INFO  :    RECORDS_OUT_OPERATOR_RS_9: 2
+INFO  :    RECORDS_OUT_OPERATOR_SEL_7: 2964624
+INFO  :    RECORDS_OUT_OPERATOR_TS_0: 2964624
+INFO  : org.apache.hadoop.hive.ql.exec.tez.HiveInputCounters:
+INFO  :    GROUPED_INPUT_SPLITS_Map_1: 2
+INFO  :    INPUT_DIRECTORIES_Map_1: 1
+INFO  :    INPUT_FILES_Map_1: 1
+INFO  :    RAW_INPUT_SPLITS_Map_1: 2
+INFO  : Completed executing command(queryId=hive_20261030103149_86ca0fbb-5185-4277-ab01-9e41ed3eed34); Time taken: 4.254 seconds
++-----------+
+| csv_rows  |
++-----------+
+| 2964624   |
++-----------+
+1 row selected (4.465 seconds)
+Beeline version 4.2.1 by Apache Hive
+Closing: 0: jdbc:hive2://localhost:10000/

@@ -1,0 +1,290 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
+\documentclass[
+  11pt,
+]{article}
+\usepackage{xcolor}
+\usepackage[margin=2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+    \setmainfont[]{DejaVu Serif}
+    \setsansfont[]{DejaVu Sans}
+    \setmonofont[Scale=0.85]{Liberation Mono}
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+\ifLuaTeX
+\usepackage[bidi=basic]{babel}
+\else
+\usepackage[bidi=default]{babel}
+\fi
+\babelprovide[main,import]{vietnamese}
+\ifPDFTeX
+\else
+\babelfont{rm}[]{DejaVu Serif}
+\fi
+% get rid of language-specific shorthands (see #6817):
+\let\LanguageShortHands\languageshorthands
+\def\languageshorthands#1{}
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{fvextra}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,breakanywhere,commandchars=\\\{\}}
+\fvset{breaklines,breakanywhere}
+\usepackage{float}
+\floatplacement{figure}{H}
+\renewcommand{\figurename}{Hình}
+\renewcommand{\tablename}{Bảng}
+\renewcommand{\contentsname}{Mục lục}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdflang={vi},
+  colorlinks=true,
+  linkcolor={Maroon},
+  filecolor={Maroon},
+  citecolor={Blue},
+  urlcolor={Blue},
+  pdfcreator={LaTeX via pandoc}}
+
+\author{}
+\date{}
+
+\begin{document}
+
+\section{L02 --- MapReduce với Hadoop Streaming
+(Python)}\label{l02-mapreduce-vux1edbi-hadoop-streaming-python}
+
+Cluster: dùng lại cluster L01 (1 NN, 3 DN, RM, NM, JobHistory). Log gốc
+trong các file \texttt{0*.txt} và \texttt{*combiner.log}; ảnh ở
+\texttt{img/}.
+
+\subsection{File nộp}\label{file-nux1ed9p}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+File
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Nội dung
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{wc\_mapper.py}, \texttt{wc\_reducer.py} & TODO 1--3 (word
+count) \\
+\texttt{zones\_mapper.py} & TODO 4--6 (map-side join với
+\texttt{taxi\_zone\_lookup.csv}, counter \texttt{BAD\_RECORDS}) \\
+\texttt{stretch\_avg\_fare/} & Stretch: giá cước trung bình theo zone
+với combiner đúng \texttt{(sum,\ count)} \\
+\end{longtable}
+
+\pandocbounded{\includegraphics[keepaspectratio]{img/code_wc_mapper.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/code_wc_reducer.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/code_zones_mapper.png}}
+
+\subsection{1--2. Word count: test local và chạy trên
+YARN}\label{word-count-test-local-vuxe0-chux1ea1y-truxean-yarn}
+
+Test local
+(\texttt{cat\ \textbar{}\ mapper\ \textbar{}\ sort\ \textbar{}\ reducer})
+cho top 5
+\texttt{the\ 25806,\ and\ 14340,\ of\ 14113,\ to\ 12103,\ a\ 9045}. Khi
+\textbf{bỏ \texttt{sort}}, reducer in \texttt{the} ra \textbf{25,805
+dòng} (mỗi lần xuất hiện gần như là một ``nhóm'' riêng) thay vì 1 dòng
+tổng.
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/01_wordcount_local_pipe.png}}
+\caption{local pipe}
+\end{figure}
+
+Trên YARN: \texttt{Launched\ map\ tasks=4} (mỗi cuốn sách \textless{} 1
+block là 1 split), \texttt{Reduce\ input\ groups=20967}; top 5 giống hệt
+bản local.
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/02_wordcount_yarn_counters.png}}
+\caption{wordcount yarn}
+\end{figure}
+
+\subsection{3--4. Dữ liệu taxi CSV và map-side
+join}\label{dux1eef-liux1ec7u-taxi-csv-vuxe0-map-side-join}
+
+1,000,000 dòng (92.8 MB) đưa lên HDFS với block 16 MB → \textbf{6 block
+→ 6 map task}. Test local trên 1,000 dòng:
+\texttt{Manhattan/East\ Village\ 59},
+\texttt{Manhattan/Lincoln\ Square\ East\ 55}. Dòng hỏng được đếm qua
+stderr \texttt{reporter:counter:TaxiLab,BAD\_RECORDS,1} (dữ liệu thật có
+0 dòng hỏng nên counter không xuất hiện trong job).
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/03_taxi_csv_and_zones_local.png}}
+\caption{taxi csv}
+\end{figure}
+
+\subsection{5. Combiner và không
+combiner}\label{combiner-vuxe0-khuxf4ng-combiner}
+
+\begin{longtable}[]{@{}lll@{}}
+\toprule\noalign{}
+Counter & Không combiner & Có combiner \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Launched map tasks & 6 & 6 \\
+Map output records & 1,000,000 & 1,000,000 \\
+Combine output records & 0 & 1,382 \\
+Map output materialized bytes & 31,039,071 & 41,169 \\
+Reduce shuffle bytes & 31,039,071 & 41,169 \\
+Reduce input records & 1,000,000 & 1,382 \\
+Wall-clock time & 30.3 s & 33.3 s \\
+\end{longtable}
+
+Kết quả hai lần chạy \textbf{giống hệt} (\texttt{diff} rỗng). Top zone:
+\texttt{Queens/JFK\ Airport\ 59777},
+\texttt{Manhattan/Midtown\ Center\ 48750}.
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/04_combiner_vs_nocombiner_counters.png}}
+\caption{combiner table}
+\end{figure}
+
+\subsection{6. YARN và JobHistory UI}\label{yarn-vuxe0-jobhistory-ui}
+
+\pandocbounded{\includegraphics[keepaspectratio]{img/10_ui_yarn_applications.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/11_ui_jobhistory_jobs.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/14_ui_job_combiner_overview.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/12_ui_counters_nocombiner.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/13_ui_counters_combiner.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/05_yarn_cli.png}}
+
+\subsection{Stretch (bonus): giá cước trung bình theo zone với combiner
+đúng}\label{stretch-bonus-giuxe1-cux1b0ux1edbc-trung-buxecnh-theo-zone-vux1edbi-combiner-ux111uxfang}
+
+Mapper emit \texttt{zone\ \textbackslash{}t\ fare,1}; combiner cộng dồn
+\texttt{(sum,\ count)} và xuất \textbf{cùng định dạng} với input;
+reducer cộng tiếp rồi mới chia \texttt{sum/count}. Kết quả JFK
+\texttt{59.71} trên \texttt{59,777} chuyến, trùng với bản chạy local
+không combiner, nghĩa là combiner không làm sai kết quả. Shuffle chỉ còn
+56,289 byte.
+
+\pandocbounded{\includegraphics[keepaspectratio]{img/06_stretch_avg_fare.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/code_stretch_avg_fare_combiner.png}}
+
+\subsection{Trả lời checkpoint}\label{trux1ea3-lux1eddi-checkpoint}
+
+\textbf{Q1.} Lệnh \texttt{sort} đóng vai trò \textbf{shuffle \& sort}:
+nó gom các key giống nhau nằm liền nhau. Thiếu nó, reducer thấy cùng một
+từ ở nhiều đoạn không liền nhau nên in ra nhiều lần với số đếm cục bộ
+(thực nghiệm: \texttt{the} bị in 25,805 lần).
+
+\textbf{Q2.} Streaming chỉ đưa cho reducer một \textbf{luồng dòng đã
+sort}; khái niệm ``nhóm''
+\texttt{(key,\ Iterable\textless{}values\textgreater{})} nằm trong
+framework Java. Reducer Python phải tự phát hiện ranh giới key
+(\texttt{current\_key}) và nhớ in key cuối cùng.
+
+\textbf{Q3.} \textbf{6 map task} = 6 input split = 6 block HDFS 16 MB
+của file CSV 92.8 MB (mặc định mỗi block là một split). Wordcount có 4
+map vì mỗi cuốn sách nhỏ hơn 1 block nên là 1 split. \textbf{2 reduce
+task} vì đặt \texttt{-D\ mapreduce.job.reduces=2} (mặc định là 1): số
+reducer do người dùng chọn, không suy ra từ dữ liệu.
+
+\textbf{Q4.} Shuffle giảm \textbf{\textasciitilde754 lần} (31,039,071 →
+41,169 byte). Mỗi map task chỉ xuất một bản ghi cho mỗi \textbf{zone
+khác nhau mà nó gặp} (\textasciitilde230--260 zone) × 6 map ≈ 1,382. Chỉ
+các tổng cục bộ này đi qua mạng.
+
+\textbf{Q5.} Combiner không nhanh hơn (33.3 s so với 30.3 s) vì trên một
+máy, shuffle chỉ là copy qua đĩa/loopback, gần như miễn phí, trong khi
+combiner thêm một process Python phải đọc, parse và sort lại 1 triệu bản
+ghi ở mỗi map. Trên cluster thật, shuffle đi qua mạng và reducer phải
+merge-sort hàng GB từ hàng trăm mapper; khi đó giảm 99.9 \% lượng
+shuffle sẽ áp đảo chi phí trên và combiner thắng rõ.
+
+\textbf{Q6.} \textbf{Không.} Trung bình của các trung bình là sai vì mỗi
+partition có số bản ghi khác nhau. Combiner phải emit cặp
+\texttt{(sum,\ count)} cục bộ và reducer mới tính \texttt{sum/count} (đã
+cài đặt ở phần stretch). Combiner phải có tính kết hợp và giao hoán,
+output cùng định dạng với input, vì Hadoop có thể chạy nó 0, 1 hoặc
+nhiều lần.
+
+\textbf{Q7.} Mỗi mapper nạp file nhỏ \texttt{taxi\_zone\_lookup.csv}
+(265 dòng, phân phối bằng distributed cache \texttt{-files}) vào một
+dict và thay ID bằng tên zone, nên join không cần shuffle. Cách này hết
+hợp lý khi bảng ``nhỏ'' không còn vừa thoải mái trong bộ nhớ của từng
+task; khi đó phải dùng reduce-side join (shuffle cả hai tập theo key).
+Spark gọi ý tưởng này là \textbf{broadcast join} (L06).
+
+\textbf{Q8.} \texttt{BAD\_RECORDS} xuất hiện trong job counters (console
+cuối job và JobHistory UI → Counters → nhóm \texttt{TaxiLab}); chỉ xuất
+hiện khi có ít nhất một dòng hỏng. Vài dòng lỗi không nên làm chết cả
+job xử lý hàng tỷ dòng; đếm chúng giúp lộ ra vấn đề chất lượng dữ liệu
+và cho phép đặt ngưỡng cảnh báo.
+
+\end{document}

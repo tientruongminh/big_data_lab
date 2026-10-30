@@ -1,0 +1,19 @@
+2026-10-30 10:43:51.467 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>/C_1: SELECT "order_id", ... FROM "orders" WHERE ( "order_seq" >= 1 ) AND ( "order_seq" < 1251 )
+2026-10-30 10:43:52.300 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>/C_1: SELECT "order_id", ... FROM "orders" WHERE ( "order_seq" >= 1251 ) AND ( "order_seq" < 2501 )
+2026-10-30 10:43:55.306 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>/C_1: SELECT "order_id", ... FROM "orders" WHERE ( "order_seq" >= 2501 ) AND ( "order_seq" < 3751 )
+2026-10-30 10:43:56.556 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>/C_1: SELECT "order_id", ... FROM "orders" WHERE ( "order_seq" >= 3751 ) AND ( "order_seq" <= 5000 )
+2026-10-30 10:44:57.302 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>: SELECT MIN("order_seq"), MAX("order_seq") FROM "orders" WHERE ( "order_seq" > 0 AND "order_seq" <= 5000 )
+2026-10-30 10:45:08.305 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>/C_1: SELECT "order_id", ... FROM "orders" WHERE ( "order_seq" > 0 AND "order_seq" <= 5000 ) AND ( "order_seq" >= 1 ) AND ( "order_seq" < 2501 )
+2026-10-30 10:45:09.060 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>/C_1: SELECT "order_id", ... FROM "orders" WHERE ( "order_seq" > 0 AND "order_seq" <= 5000 ) AND ( "order_seq" >= 2501 ) AND ( "order_seq" <= 5000 )
+2026-10-30 10:46:26.632 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>/C_1: SELECT "order_id", ... FROM "orders" WHERE ( "order_seq" > 5000 AND "order_seq" <= 5003 ) AND ( 1=1 ) AND ( 1=1 )
+2026-10-30 10:50:24.927 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>: SELECT * FROM (SELECT min(order_seq) AS lo, max(order_seq) AS hi FROM orders) SPARK_GEN_SUBQ_0 WHERE 1=0
+2026-10-30 10:50:25.027 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>: SELECT "lo","hi" FROM (SELECT min(order_seq) AS lo, max(order_seq) AS hi FROM orders) SPARK_GEN_SUBQ_0      
+2026-10-30 10:50:25.280 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>/C_1: SELECT 1 FROM orders  WHERE "order_seq" >= 2502 AND "order_seq" < 3752    
+2026-10-30 10:50:25.281 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>/C_1: SELECT 1 FROM orders  WHERE "order_seq" < 1252 or "order_seq" is null    
+2026-10-30 10:50:25.292 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>/C_1: SELECT 1 FROM orders  WHERE "order_seq" >= 1252 AND "order_seq" < 2502    
+2026-10-30 10:50:25.301 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>/C_1: SELECT 1 FROM orders  WHERE "order_seq" >= 3752    
+2026-10-30 10:50:26.633 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>: SELECT 1 FROM orders  WHERE "order_purchase_timestamp" >= '2018-04-02 00:00:00'    
+2026-10-30 10:50:26.645 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>: SELECT 1 FROM orders  WHERE "order_purchase_timestamp" < '2017-06-02 00:00:00' or "order_purchase_timestamp" is null    
+2026-10-30 10:51:09.019 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>: SELECT "order_id","customer_id","order_status","order_purchase_timestamp","order_approved_at","order_delivered_carrier_date","order_delivered_customer_date","order_estimated_delivery_date","order_seq","updated_at" FROM (SE
+2026-10-30 10:51:27.605 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>: SELECT "order_id","customer_id","order_status","order_purchase_timestamp","order_approved_at","order_delivered_carrier_date","order_delivered_customer_date","order_estimated_delivery_date","order_seq","updated_at" FROM (SE
+2026-10-30 10:51:45.065 UTC [PostgreSQL JDBC Driver] LOG:  execute <unnamed>: SELECT "order_id","customer_id","order_status","order_purchase_timestamp","order_approved_at","order_delivered_carrier_date","order_delivered_customer_date","order_estimated_delivery_date","order_seq","updated_at" FROM (SE

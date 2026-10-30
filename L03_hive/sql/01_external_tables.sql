@@ -38,11 +38,10 @@ CREATE EXTERNAL TABLE zones (
   zone         STRING,
   service_zone STRING
 )
--- TODO 1: complete the table definition:
---   * use the SerDe 'org.apache.hadoop.hive.serde2.OpenCSVSerde'  (ROW FORMAT SERDE '...')
---   * text file stored in HDFS directory /data/zones
---   * skip the header line  (TBLPROPERTIES ('skip.header.line.count' = '1'))
-;
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+STORED AS TEXTFILE
+LOCATION '/data/zones'
+TBLPROPERTIES ('skip.header.line.count' = '1');
 
 SHOW TABLES;
 SELECT * FROM trips_csv LIMIT 3;

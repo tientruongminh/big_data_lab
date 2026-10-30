@@ -1,0 +1,169 @@
+Connecting to jdbc:hive2://localhost:10000/
+Connected to: Apache Hive (version 4.2.1)
+Driver: Hive JDBC (version 4.2.1)
+Transaction isolation: TRANSACTION_REPEATABLE_READ
+INFO  : Compiling command(queryId=hive_20261030103640_f6ca36bc-4941-4913-997d-2d3a8b937056): USE taxi
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:null, properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103640_f6ca36bc-4941-4913-997d-2d3a8b937056); Time taken: 0.01 seconds
+INFO  : Executing command(queryId=hive_20261030103640_f6ca36bc-4941-4913-997d-2d3a8b937056): USE taxi
+INFO  : Starting task [Stage-0:DDL] in serial mode
+INFO  : Completed executing command(queryId=hive_20261030103640_f6ca36bc-4941-4913-997d-2d3a8b937056); Time taken: 0.005 seconds
+No rows affected (0.053 seconds)
+No rows affected (0.004 seconds)
+INFO  : Compiling command(queryId=hive_20261030103640_51b0a5c4-e9e2-4ce4-b00a-8b22ee6ee3a3): EXPLAIN SELECT count(*) FROM trips_orc
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:[FieldSchema(name:Explain, type:string, comment:null)], properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103640_51b0a5c4-e9e2-4ce4-b00a-8b22ee6ee3a3); Time taken: 0.091 seconds
+INFO  : Executing command(queryId=hive_20261030103640_51b0a5c4-e9e2-4ce4-b00a-8b22ee6ee3a3): EXPLAIN SELECT count(*) FROM trips_orc
+INFO  : Starting task [Stage-3:EXPLAIN] in serial mode
+INFO  : Completed executing command(queryId=hive_20261030103640_51b0a5c4-e9e2-4ce4-b00a-8b22ee6ee3a3); Time taken: 0.014 seconds
++----------------------------------------------------+
+|                      Explain                       |
++----------------------------------------------------+
+| Plan optimized by CBO.                             |
+|                                                    |
+| Vertex dependency in root stage                    |
+| Reducer 2 <- Map 1 (CUSTOM_SIMPLE_EDGE)            |
+|                                                    |
+| Stage-0                                            |
+|   Fetch Operator                                   |
+|     limit:-1                                       |
+|     Stage-1                                        |
+|       Reducer 2 vectorized                         |
+|       File Output Operator [FS_11]                 |
+|         Group By Operator [GBY_10] (rows=1 width=8) |
+|           Output:["_col0"],aggregations:["count(VALUE._col0)"] |
+|         <-Map 1 [CUSTOM_SIMPLE_EDGE] vectorized    |
+|           PARTITION_ONLY_SHUFFLE [RS_9]            |
+|             Group By Operator [GBY_8] (rows=1 width=8) |
+|               Output:["_col0"],aggregations:["count()"] |
+|               Select Operator [SEL_7] (rows=2964624 width=290) |
+|                 TableScan [TS_0] (rows=2964624 width=290) |
+|                   taxi@trips_orc,trips_orc,Tbl:COMPLETE,Col:COMPLETE |
+|                                                    |
++----------------------------------------------------+
+21 rows selected (0.143 seconds)
+INFO  : Compiling command(queryId=hive_20261030103640_74a403c3-0e58-4449-a0ab-9dd2024bb9c2): SELECT count(*) AS stats_count FROM trips_orc
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:[FieldSchema(name:stats_count, type:bigint, comment:null)], properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103640_74a403c3-0e58-4449-a0ab-9dd2024bb9c2); Time taken: 0.15 seconds
+INFO  : Executing command(queryId=hive_20261030103640_74a403c3-0e58-4449-a0ab-9dd2024bb9c2): SELECT count(*) AS stats_count FROM trips_orc
+INFO  : Query ID = hive_20261030103640_74a403c3-0e58-4449-a0ab-9dd2024bb9c2
+INFO  : Total jobs = 1
+INFO  : Launching Job 1 out of 1
+INFO  : Starting task [Stage-1:MAPRED] in serial mode
+INFO  : Subscribed to counters: [] for queryId: hive_20261030103640_74a403c3-0e58-4449-a0ab-9dd2024bb9c2
+INFO  : Tez session hasn't been created yet. Opening session
+INFO  : Dag name: SELECT count(*) AS st......nt FROM trips_orc (Stage-1)
+INFO  : HS2 Host: [hiveserver2], Query ID: [hive_20261030103640_74a403c3-0e58-4449-a0ab-9dd2024bb9c2], Dag ID: [dag_1793356600496_0001_1], DAG App ID: [application_1793356600496_0001], DAG App address: [hiveserver2]
+INFO  : Status: Running (Executing on YARN cluster with App id application_1793356600496_0001)
+INFO  : 2026-10-30 10:36:41,504	Map 1: -/-	Reducer 2: 0/1	
+INFO  : 2026-10-30 10:36:42,006	Map 1: 1/1	Reducer 2: 0/1	
+INFO  : 2026-10-30 10:36:42,868	Map 1: 1/1	Reducer 2: 1/1	
+INFO  : Status: DAG finished successfully in 1.37 seconds
+INFO  : DAG ID: dag_1793356600496_0001_1
+INFO  : 
+INFO  : Query Execution Summary
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : OPERATION                            DURATION
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : Compile Query                           0.15s
+INFO  : Prepare Plan                            1.00s
+INFO  : Get Query Coordinator (AM)              0.00s
+INFO  : Submit Plan                             0.03s
+INFO  : Start DAG                               0.01s
+INFO  : Run DAG                                 1.36s
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : 
+INFO  : Task Execution Summary
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :   VERTICES      DURATION(ms)   CPU_TIME(ms)    GC_TIME(ms)   INPUT_RECORDS   OUTPUT_RECORDS
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :      Map 1              0.00              0              0       2,964,624                1
+INFO  :  Reducer 2              0.00              0              0               1                0
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : FileSystem Counters Summary
+INFO  : 
+INFO  : Scheme: HDFS
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :   VERTICES      BYTES_READ      READ_OPS     LARGE_READ_OPS      BYTES_WRITTEN     WRITE_OPS
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :      Map 1              0B             0                  0                 0B             0
+INFO  :  Reducer 2              0B             0                  0                 0B             0
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : 
+INFO  : Scheme: FILE
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :   VERTICES      BYTES_READ      READ_OPS     LARGE_READ_OPS      BYTES_WRITTEN     WRITE_OPS
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  :      Map 1              0B             0                  0                 0B             0
+INFO  :  Reducer 2              0B             0                  0                 0B             0
+INFO  : ----------------------------------------------------------------------------------------------
+INFO  : 
+INFO  : org.apache.tez.common.counters.DAGCounter:
+INFO  :    NUM_SUCCEEDED_TASKS: 2
+INFO  :    TOTAL_LAUNCHED_TASKS: 2
+INFO  :    DURATION_SUCCEEDED_TASKS_MILLIS: 475
+INFO  :    RACK_LOCAL_TASKS: 1
+INFO  :    AM_CPU_MILLISECONDS: 940
+INFO  :    WALL_CLOCK_MILLIS: 475
+INFO  :    AM_GC_TIME_MILLIS: 0
+INFO  :    INITIAL_HELD_CONTAINERS: 0
+INFO  :    TOTAL_CONTAINERS_USED: 2
+INFO  :    TOTAL_CONTAINER_LAUNCH_COUNT: 2
+INFO  :    TOTAL_CONTAINER_RELEASE_COUNT: 2
+INFO  :    NODE_USED_COUNT: 1
+INFO  :    NODE_TOTAL_COUNT: 1
+INFO  : org.apache.tez.common.counters.TaskCounter:
+INFO  :    SPILLED_RECORDS: 0
+INFO  :    NUM_SHUFFLED_INPUTS: 0
+INFO  :    NUM_FAILED_SHUFFLE_INPUTS: 0
+INFO  :    INPUT_RECORDS_PROCESSED: 2901
+INFO  :    INPUT_SPLIT_LENGTH_BYTES: 52624644
+INFO  :    OUTPUT_RECORDS: 1
+INFO  :    APPROXIMATE_INPUT_RECORDS: 1
+INFO  :    OUTPUT_LARGE_RECORDS: 0
+INFO  :    OUTPUT_BYTES: 6
+INFO  :    OUTPUT_BYTES_WITH_OVERHEAD: 14
+INFO  :    OUTPUT_BYTES_PHYSICAL: 42
+INFO  :    ADDITIONAL_SPILLS_BYTES_WRITTEN: 0
+INFO  :    ADDITIONAL_SPILLS_BYTES_READ: 0
+INFO  :    ADDITIONAL_SPILL_COUNT: 0
+INFO  :    SHUFFLE_BYTES: 0
+INFO  :    SHUFFLE_BYTES_DECOMPRESSED: 0
+INFO  :    SHUFFLE_BYTES_TO_MEM: 0
+INFO  :    SHUFFLE_BYTES_TO_DISK: 0
+INFO  :    SHUFFLE_BYTES_DISK_DIRECT: 0
+INFO  :    SHUFFLE_PHASE_TIME: 1
+INFO  :    FIRST_EVENT_RECEIVED: 1
+INFO  :    LAST_EVENT_RECEIVED: 1
+INFO  :    DATA_BYTES_VIA_EVENT: 18
+INFO  : HIVE:
+INFO  :    CREATED_FILES: 1
+INFO  :    DESERIALIZE_ERRORS: 0
+INFO  :    RECORDS_IN_Map_1: 2964624
+INFO  :    RECORDS_OUT_0: 1
+INFO  :    RECORDS_OUT_INTERMEDIATE_Map_1: 1
+INFO  :    RECORDS_OUT_INTERMEDIATE_Reducer_2: 0
+INFO  :    RECORDS_OUT_OPERATOR_FS_11: 1
+INFO  :    RECORDS_OUT_OPERATOR_GBY_10: 1
+INFO  :    RECORDS_OUT_OPERATOR_GBY_8: 1
+INFO  :    RECORDS_OUT_OPERATOR_MAP_0: 0
+INFO  :    RECORDS_OUT_OPERATOR_RS_9: 1
+INFO  :    RECORDS_OUT_OPERATOR_SEL_7: 2964624
+INFO  :    RECORDS_OUT_OPERATOR_TS_0: 2964624
+INFO  : org.apache.hadoop.hive.ql.exec.tez.HiveInputCounters:
+INFO  :    GROUPED_INPUT_SPLITS_Map_1: 1
+INFO  :    INPUT_DIRECTORIES_Map_1: 5
+INFO  :    INPUT_FILES_Map_1: 5
+INFO  :    RAW_INPUT_SPLITS_Map_1: 5
+INFO  : Completed executing command(queryId=hive_20261030103640_74a403c3-0e58-4449-a0ab-9dd2024bb9c2); Time taken: 2.419 seconds
++--------------+
+| stats_count  |
++--------------+
+| 2964624      |
++--------------+
+1 row selected (2.592 seconds)
+Beeline version 4.2.1 by Apache Hive
+Closing: 0: jdbc:hive2://localhost:10000/

@@ -1,0 +1,7 @@
+$ psql metastore: TBLS JOIN SDS
+ TBL_NAME  |    TBL_TYPE    |              LOCATION              |               INPUT_FORMAT               
+-----------+----------------+------------------------------------+------------------------------------------
+ trips_csv | EXTERNAL_TABLE | hdfs://namenode:8020/data/taxi_csv | org.apache.hadoop.mapred.TextInputFormat
+ zones     | EXTERNAL_TABLE | hdfs://namenode:8020/data/zones    | org.apache.hadoop.mapred.TextInputFormat
+(2 rows)
+

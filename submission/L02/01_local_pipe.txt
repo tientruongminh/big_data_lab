@@ -1,0 +1,17 @@
+total 2.6M
+-rw-r--r-- 1 root root 171K Oct 30 10:24 pg11.txt
+-rw-r--r-- 1 root root 755K Oct 30 10:24 pg1342.txt
+-rw-r--r-- 1 root root 1.3M Oct 30 10:24 pg2701.txt
+-rw-r--r-- 1 root root 439K Oct 30 10:24 pg84.txt
+$ echo "Hadoop's HDFS, hadoop!" | python3 mapper.py
+hadoop's	1
+hdfs	1
+hadoop	1
+$ cat books/*.txt | python3 mapper.py | sort | python3 reducer.py | sort -t$'\t' -k2,2nr | head -5
+the	25806
+and	14340
+of	14113
+to	12103
+a	9045
+$ ... WITHOUT sort (same pipe, sort removed) | grep -c ^the$'\t'
+25805

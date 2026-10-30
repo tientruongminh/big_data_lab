@@ -1,0 +1,110 @@
+Safe mode is OFF
+### 1. dfsadmin -report
+Live datanodes (3):
+Name: 172.29.0.2:9866 (l01_hdfs-datanode2-1.l01_hdfs_default)
+Hostname: datanode2
+Name: 172.29.0.3:9866 (l01_hdfs-datanode3-1.l01_hdfs_default)
+Hostname: datanode3
+Name: 172.29.0.5:9866 (l01_hdfs-datanode1-1.l01_hdfs_default)
+Hostname: datanode1
+### 2. dfs shell
+Found 1 items
+-rw-r--r--   3 root supergroup      12331 2026-10-30 10:14 /data/taxi/taxi_zone_lookup.csv
+Manhattan rows: 70
+-rw-r--r-- 1 root root 12331 Oct 30 10:15 /tmp/zones_copy.csv
+Deleted /user/root/zones_copy.csv
+12.0 K  36.1 K  /data/taxi/taxi_zone_lookup.csv
+### TODO 2.1
+name=taxi_zone_lookup.csv blocksize=134217728 repl=3 size=12331
+### 3. blocks
+yellow_tripdata_2024-01.parquet blocksize=134217728 repl=3 size=49961641
+yellow_tripdata_2024-01.parquet blocksize=16777216 repl=3 size=49961641
+--- fsck default_blocks
+/data/taxi/default_blocks <dir>
+/data/taxi/default_blocks/yellow_tripdata_2024-01.parquet 49961641 bytes, replicated: replication=3, 1 block(s):  OK
+0. BP-361839436-172.29.0.7-1793355266756:blk_1073741827_1003 len=49961641 Live_repl=3  [DatanodeInfoWithStorage[172.29.0.3:9866,DS-40f5e434-77f4-46f4-b595-2cea416937fe,DISK], DatanodeInfoWithStorage[172.29.0.5:9866,DS-a13511a4-4968-49b1-af9d-4b33712c6021,DISK], DatanodeInfoWithStorage[172.29.0.2:9866,DS-abdc23f4-4959-47fa-b34b-0829bd838ae0,DISK]]
+Status: HEALTHY
+ Number of data-nodes:	3
+ Number of racks:		1
+ Total dirs:			1
+ Total symlinks:		0
+Replicated Blocks:
+ Total size:	49961641 B
+ Total files:	1
+ Total blocks (validated):	1 (avg. block size 49961641 B)
+ Minimally replicated blocks:	1 (100.0 %)
+ Over-replicated blocks:	0 (0.0 %)
+ Under-replicated blocks:	0 (0.0 %)
+ Mis-replicated blocks:		0 (0.0 %)
+ Default replication factor:	3
+ Average block replication:	3.0
+ Missing blocks:		0
+ Corrupt blocks:		0
+ Missing replicas:		0 (0.0 %)
+ Blocks queued for replication:	0
+Erasure Coded Block Groups:
+ Total size:	0 B
+ Total files:	0
+ Total block groups (validated):	0
+ Minimally erasure-coded block groups:	0
+ Over-erasure-coded block groups:	0
+ Under-erasure-coded block groups:	0
+ Unsatisfactory placement block groups:	0
+ Average block group size:	0.0
+ Missing block groups:		0
+ Corrupt block groups:		0
+ Missing internal blocks:	0
+ Blocks queued for replication:	0
+FSCK ended at Fri Oct 30 10:15:19 UTC 2026 in 9 milliseconds
+The filesystem under path '/data/taxi/default_blocks' is HEALTHY
+--- fsck small_blocks (rep 3)
+/data/taxi/small_blocks <dir>
+/data/taxi/small_blocks/yellow_tripdata_2024-01.parquet 49961641 bytes, replicated: replication=3, 3 block(s):  Under replicated BP-361839436-172.29.0.7-1793355266756:blk_1073741829_1005. Target Replicas is 3 but found 2 live replica(s), 0 decommissioned replica(s), 0 decommissioning replica(s).
+ Under replicated BP-361839436-172.29.0.7-1793355266756:blk_1073741830_1006. Target Replicas is 3 but found 2 live replica(s), 0 decommissioned replica(s), 0 decommissioning replica(s).
+0. BP-361839436-172.29.0.7-1793355266756:blk_1073741828_1004 len=16777216 Live_repl=3  [DatanodeInfoWithStorage[172.29.0.2:9866,DS-abdc23f4-4959-47fa-b34b-0829bd838ae0,DISK], DatanodeInfoWithStorage[172.29.0.3:9866,DS-40f5e434-77f4-46f4-b595-2cea416937fe,DISK], DatanodeInfoWithStorage[172.29.0.5:9866,DS-a13511a4-4968-49b1-af9d-4b33712c6021,DISK]]
+1. BP-361839436-172.29.0.7-1793355266756:blk_1073741829_1005 len=16777216 Live_repl=2  [DatanodeInfoWithStorage[172.29.0.3:9866,DS-40f5e434-77f4-46f4-b595-2cea416937fe,DISK], DatanodeInfoWithStorage[172.29.0.5:9866,DS-a13511a4-4968-49b1-af9d-4b33712c6021,DISK]]
+2. BP-361839436-172.29.0.7-1793355266756:blk_1073741830_1006 len=16407209 Live_repl=2  [DatanodeInfoWithStorage[172.29.0.3:9866,DS-40f5e434-77f4-46f4-b595-2cea416937fe,DISK], DatanodeInfoWithStorage[172.29.0.5:9866,DS-a13511a4-4968-49b1-af9d-4b33712c6021,DISK]]
+Status: HEALTHY
+ Number of data-nodes:	3
+ Number of racks:		1
+ Total dirs:			1
+ Total symlinks:		0
+Replicated Blocks:
+ Total size:	49961641 B
+ Total files:	1
+ Total blocks (validated):	3 (avg. block size 16653880 B)
+ Minimally replicated blocks:	3 (100.0 %)
+ Over-replicated blocks:	0 (0.0 %)
+ Under-replicated blocks:	2 (66.666664 %)
+ Mis-replicated blocks:		0 (0.0 %)
+ Default replication factor:	3
+ Average block replication:	2.3333333
+ Missing blocks:		0
+ Corrupt blocks:		0
+ Missing replicas:		2 (22.222221 %)
+ Blocks queued for replication:	0
+Erasure Coded Block Groups:
+ Total size:	0 B
+ Total files:	0
+ Total block groups (validated):	0
+ Minimally erasure-coded block groups:	0
+ Over-erasure-coded block groups:	0
+ Under-erasure-coded block groups:	0
+ Unsatisfactory placement block groups:	0
+ Average block group size:	0.0
+ Missing block groups:		0
+ Corrupt block groups:		0
+ Missing internal blocks:	0
+ Blocks queued for replication:	0
+FSCK ended at Fri Oct 30 10:15:21 UTC 2026 in 2 milliseconds
+The filesystem under path '/data/taxi/small_blocks' is HEALTHY
+-rw-r--r-- 1 root root 128191 Oct 30 10:15 /hadoop/dfs/data/current/BP-361839436-172.29.0.7-1793355266756/current/finalized/subdir0/subdir0/blk_1073741830_1006.meta
+-rw-r--r-- 1 root root 16407209 Oct 30 10:15 /hadoop/dfs/data/current/BP-361839436-172.29.0.7-1793355266756/current/finalized/subdir0/subdir0/blk_1073741830
+-rw-r--r-- 1 root root 16777216 Oct 30 10:15 /hadoop/dfs/data/current/BP-361839436-172.29.0.7-1793355266756/current/finalized/subdir0/subdir0/blk_1073741829
+-rw-r--r-- 1 root root 131079 Oct 30 10:15 /hadoop/dfs/data/current/BP-361839436-172.29.0.7-1793355266756/current/finalized/subdir0/subdir0/blk_1073741829_1005.meta
+-rw-r--r-- 1 root root 107 Oct 30 10:14 /hadoop/dfs/data/current/BP-361839436-172.29.0.7-1793355266756/current/finalized/subdir0/subdir0/blk_1073741825_1001.meta
+-rw-r--r-- 1 root root 49961641 Oct 30 10:15 /hadoop/dfs/data/current/BP-361839436-172.29.0.7-1793355266756/current/finalized/subdir0/subdir0/blk_1073741827
+-rw-r--r-- 1 root root 12331 Oct 30 10:14 /hadoop/dfs/data/current/BP-361839436-172.29.0.7-1793355266756/current/finalized/subdir0/subdir0/blk_1073741825
+-rw-r--r-- 1 root root 16777216 Oct 30 10:15 /hadoop/dfs/data/current/BP-361839436-172.29.0.7-1793355266756/current/finalized/subdir0/subdir0/blk_1073741828
+-rw-r--r-- 1 root root 390335 Oct 30 10:15 /hadoop/dfs/data/current/BP-361839436-172.29.0.7-1793355266756/current/finalized/subdir0/subdir0/blk_1073741827_1003.meta
+-rw-r--r-- 1 root root 131079 Oct 30 10:15 /hadoop/dfs/data/current/BP-361839436-172.29.0.7-1793355266756/current/finalized/subdir0/subdir0/blk_1073741828_1004.meta

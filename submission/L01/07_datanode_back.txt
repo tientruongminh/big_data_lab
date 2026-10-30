@@ -1,0 +1,5 @@
+### after datanode3 restarted
+Live datanodes (3):
+Status: HEALTHY
+ Over-replicated blocks:	0 (0.0 %)
+ Under-replicated blocks:	0 (0.0 %)

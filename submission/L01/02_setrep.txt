@@ -1,0 +1,21 @@
+### fsck small_blocks rep3 (settled)
+/data/taxi/small_blocks <dir>
+/data/taxi/small_blocks/yellow_tripdata_2024-01.parquet 49961641 bytes, replicated: replication=3, 3 block(s):  OK
+0. BP-361839436-172.29.0.7-1793355266756:blk_1073741828_1004 len=16777216 Live_repl=3  [DatanodeInfoWithStorage[172.29.0.2:9866,DS-abdc23f4-4959-47fa-b34b-0829bd838ae0,DISK], DatanodeInfoWithStorage[172.29.0.3:9866,DS-40f5e434-77f4-46f4-b595-2cea416937fe,DISK], DatanodeInfoWithStorage[172.29.0.5:9866,DS-a13511a4-4968-49b1-af9d-4b33712c6021,DISK]]
+1. BP-361839436-172.29.0.7-1793355266756:blk_1073741829_1005 len=16777216 Live_repl=3  [DatanodeInfoWithStorage[172.29.0.3:9866,DS-40f5e434-77f4-46f4-b595-2cea416937fe,DISK], DatanodeInfoWithStorage[172.29.0.5:9866,DS-a13511a4-4968-49b1-af9d-4b33712c6021,DISK], DatanodeInfoWithStorage[172.29.0.2:9866,DS-abdc23f4-4959-47fa-b34b-0829bd838ae0,DISK]]
+2. BP-361839436-172.29.0.7-1793355266756:blk_1073741830_1006 len=16407209 Live_repl=3  [DatanodeInfoWithStorage[172.29.0.3:9866,DS-40f5e434-77f4-46f4-b595-2cea416937fe,DISK], DatanodeInfoWithStorage[172.29.0.5:9866,DS-a13511a4-4968-49b1-af9d-4b33712c6021,DISK], DatanodeInfoWithStorage[172.29.0.2:9866,DS-abdc23f4-4959-47fa-b34b-0829bd838ae0,DISK]]
+Status: HEALTHY
+ Under-replicated blocks:	0 (0.0 %)
+### 4. setrep 2
+Replication 2 set: /data/taxi/small_blocks/yellow_tripdata_2024-01.parquet
+Waiting for /data/taxi/small_blocks/yellow_tripdata_2024-01.parquet ...
+WARNING: the waiting time may be long for DECREASING the number of replications.
+. done
+Found 1 items
+-rw-r--r--   2 root supergroup   49961641 2026-10-30 10:15 /data/taxi/small_blocks/yellow_tripdata_2024-01.parquet
+47.6 M  142.9 M  /data/taxi/default_blocks
+47.6 M  95.3 M   /data/taxi/small_blocks
+12.0 K  36.1 K   /data/taxi/taxi_zone_lookup.csv
+### TODO 4.1
+one_replica.csv repl=1
+0. BP-361839436-172.29.0.7-1793355266756:blk_1073741831_1007 len=12331 Live_repl=1  [DatanodeInfoWithStorage[172.29.0.5:9866,DS-a13511a4-4968-49b1-af9d-4b33712c6021,DISK]]

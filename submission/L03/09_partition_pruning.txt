@@ -1,0 +1,250 @@
+Connecting to jdbc:hive2://localhost:10000/
+Connected to: Apache Hive (version 4.2.1)
+Driver: Hive JDBC (version 4.2.1)
+Transaction isolation: TRANSACTION_REPEATABLE_READ
+INFO  : Compiling command(queryId=hive_20261030103503_781663cc-e5b6-4af1-8c2f-28a3991fecd1): USE taxi
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:null, properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103503_781663cc-e5b6-4af1-8c2f-28a3991fecd1); Time taken: 0.014 seconds
+INFO  : Executing command(queryId=hive_20261030103503_781663cc-e5b6-4af1-8c2f-28a3991fecd1): USE taxi
+INFO  : Starting task [Stage-0:DDL] in serial mode
+INFO  : Completed executing command(queryId=hive_20261030103503_781663cc-e5b6-4af1-8c2f-28a3991fecd1); Time taken: 0.007 seconds
+No rows affected (0.068 seconds)
+INFO  : Compiling command(queryId=hive_20261030103503_8c215077-faf6-4334-945a-923fea134799): EXPLAIN DEPENDENCY
+SELECT count(*) FROM trips_orc WHERE pickup_month = '2024-01'
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:[FieldSchema(name:Explain, type:string, comment:null)], properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103503_8c215077-faf6-4334-945a-923fea134799); Time taken: 0.115 seconds
+INFO  : Executing command(queryId=hive_20261030103503_8c215077-faf6-4334-945a-923fea134799): EXPLAIN DEPENDENCY
+SELECT count(*) FROM trips_orc WHERE pickup_month = '2024-01'
+INFO  : Starting task [Stage-3:EXPLAIN] in serial mode
+INFO  : Completed executing command(queryId=hive_20261030103503_8c215077-faf6-4334-945a-923fea134799); Time taken: 0.003 seconds
++----------------------------------------------------+
+|                      Explain                       |
++----------------------------------------------------+
+| {"input_tables":[{"tablename":"taxi@trips_orc","tabletype":"EXTERNAL_TABLE"}],"input_partitions":[{"partitionName":"taxi@trips_orc@pickup_month=2024-01"}]} |
++----------------------------------------------------+
+1 row selected (0.149 seconds)
+INFO  : Compiling command(queryId=hive_20261030103503_34ace9c9-e3f9-4353-b602-cf10de63b6e6): EXPLAIN DEPENDENCY
+SELECT count(*) FROM trips_orc
+WHERE tpep_pickup_datetime >= '2024-01-01' AND tpep_pickup_datetime < '2024-02-01'
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:[FieldSchema(name:Explain, type:string, comment:null)], properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103503_34ace9c9-e3f9-4353-b602-cf10de63b6e6); Time taken: 0.169 seconds
+INFO  : Executing command(queryId=hive_20261030103503_34ace9c9-e3f9-4353-b602-cf10de63b6e6): EXPLAIN DEPENDENCY
+SELECT count(*) FROM trips_orc
+WHERE tpep_pickup_datetime >= '2024-01-01' AND tpep_pickup_datetime < '2024-02-01'
+INFO  : Starting task [Stage-3:EXPLAIN] in serial mode
+INFO  : Completed executing command(queryId=hive_20261030103503_34ace9c9-e3f9-4353-b602-cf10de63b6e6); Time taken: 0.001 seconds
++----------------------------------------------------+
+|                      Explain                       |
++----------------------------------------------------+
+| {"input_tables":[{"tablename":"taxi@trips_orc","tabletype":"EXTERNAL_TABLE"}],"input_partitions":[{"partitionName":"taxi@trips_orc@pickup_month=2002-12"},{"partitionName":"taxi@trips_orc@pickup_month=2009-01"},{"partitionName":"taxi@trips_orc@pickup_month=2023-12"},{"partitionName":"taxi@trips_orc@pickup_month=2024-01"},{"partitionName":"taxi@trips_orc@pickup_month=2024-02"}]} |
++----------------------------------------------------+
+1 row selected (0.183 seconds)
+INFO  : Compiling command(queryId=hive_20261030103503_e9ce7a24-c285-42c7-9abb-47d86f26df1d): EXPLAIN EXTENDED
+SELECT count(*) FROM trips_orc WHERE pickup_month = '2024-01'
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:[FieldSchema(name:Explain, type:string, comment:null)], properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103503_e9ce7a24-c285-42c7-9abb-47d86f26df1d); Time taken: 0.121 seconds
+INFO  : Executing command(queryId=hive_20261030103503_e9ce7a24-c285-42c7-9abb-47d86f26df1d): EXPLAIN EXTENDED
+SELECT count(*) FROM trips_orc WHERE pickup_month = '2024-01'
+INFO  : Starting task [Stage-3:EXPLAIN] in serial mode
+INFO  : Completed executing command(queryId=hive_20261030103503_e9ce7a24-c285-42c7-9abb-47d86f26df1d); Time taken: 0.015 seconds
++----------------------------------------------------+
+|                      Explain                       |
++----------------------------------------------------+
+| OPTIMIZED SQL: SELECT COUNT(*) AS `_c0`            |
+| FROM `taxi`.`trips_orc`                            |
+| WHERE `pickup_month` = '2024-01'                   |
+| STAGE DEPENDENCIES:                                |
+|   Stage-1 is a root stage                          |
+|   Stage-0 depends on stages: Stage-1               |
+|                                                    |
+| STAGE PLANS:                                       |
+|   Stage: Stage-1                                   |
+|     Tez                                            |
+|       DagId: hive_20261030103503_e9ce7a24-c285-42c7-9abb-47d86f26df1d:17 |
+|       Edges:                                       |
+|         Reducer 2 <- Map 1 (CUSTOM_SIMPLE_EDGE)    |
+|       DagName: hive_20261030103503_e9ce7a24-c285-42c7-9abb-47d86f26df1d:17 |
+|       Vertices:                                    |
+|         Map 1                                      |
+|             Map Operator Tree:                     |
+|                 TableScan                          |
+|                   alias: trips_orc                 |
+|                   filterExpr: (pickup_month = '2024-01') (type: boolean) |
+|                   Statistics: Num rows: 2964606 Data size: 849321344 Basic stats: COMPLETE Column stats: COMPLETE |
+|                   GatherStats: false               |
+|                   Select Operator                  |
+|                     Statistics: Num rows: 2964606 Data size: 849321344 Basic stats: COMPLETE Column stats: COMPLETE |
+|                     Group By Operator              |
+|                       aggregations: count()        |
+|                       minReductionHashAggr: 0.99   |
+|                       mode: hash                   |
+|                       outputColumnNames: _col0     |
+|                       Statistics: Num rows: 1 Data size: 8 Basic stats: COMPLETE Column stats: COMPLETE |
+|                       Reduce Output Operator       |
+|                         bucketingVersion: 2        |
+|                         null sort order:           |
+|                         numBuckets: -1             |
+|                         sort order:                |
+|                         Statistics: Num rows: 1 Data size: 8 Basic stats: COMPLETE Column stats: COMPLETE |
+|                         tag: -1                    |
+|                         value expressions: _col0 (type: bigint) |
+|                         auto parallelism: false    |
+|             Execution mode: vectorized             |
+|             Path -> Alias:                         |
+|               hdfs://namenode:8020/user/hive/warehouse/taxi.db/trips_orc/pickup_month=2024-01 [trips_orc] |
+|             Path -> Partition:                     |
+|               hdfs://namenode:8020/user/hive/warehouse/taxi.db/trips_orc/pickup_month=2024-01  |
+|                 Partition                          |
+|                   base file name: pickup_month=2024-01 |
+|                   input format: org.apache.hadoop.hive.ql.io.orc.OrcInputFormat |
+|                   output format: org.apache.hadoop.hive.ql.io.orc.OrcOutputFormat |
+|                   partition values:                |
+|                     pickup_month 2024-01           |
+|                   properties:                      |
+|                     file.inputformat org.apache.hadoop.hive.ql.io.orc.OrcInputFormat |
+|                     file.outputformat org.apache.hadoop.hive.ql.io.orc.OrcOutputFormat |
+|                     location hdfs://namenode:8020/user/hive/warehouse/taxi.db/trips_orc/pickup_month=2024-01 |
+|                     name taxi.trips_orc            |
+|                     partition_columns pickup_month |
+|                     partition_columns.types string |
+|                     serialization.format 1         |
+|                     serialization.lib org.apache.hadoop.hive.ql.io.orc.OrcSerde |
+|                   serde: org.apache.hadoop.hive.ql.io.orc.OrcSerde |
+|                                                    |
+|                     input format: org.apache.hadoop.hive.ql.io.orc.OrcInputFormat |
+|                     output format: org.apache.hadoop.hive.ql.io.orc.OrcOutputFormat |
+|                     properties:                    |
+|                       EXTERNAL TRUE                |
+|                       TRANSLATED_TO_EXTERNAL TRUE  |
+|                       bucketing_version 2          |
+|                       column.name.delimiter ,      |
+|                       columns vendorid,tpep_pickup_datetime,tpep_dropoff_datetime,passenger_count,trip_distance,ratecodeid,store_and_fwd_flag,pulocationid,dolocationid,payment_type,fare_amount,extra,mta_tax,tip_amount,tolls_amount,improvement_surcharge,total_amount,congestion_surcharge,airport_fee |
+|                       columns.comments             |
+|                       columns.types int:timestamp:timestamp:bigint:double:bigint:string:int:int:bigint:double:double:double:double:double:double:double:double:double |
+|                       external.table.purge TRUE    |
+|                       file.inputformat org.apache.hadoop.hive.ql.io.orc.OrcInputFormat |
+|                       file.outputformat org.apache.hadoop.hive.ql.io.orc.OrcOutputFormat |
+|                       location hdfs://namenode:8020/user/hive/warehouse/taxi.db/trips_orc |
+|                       name taxi.trips_orc          |
+|                       orc.compress ZLIB            |
+|                       partition_columns pickup_month |
+|                       partition_columns.types string |
+|                       serialization.format 1       |
+|                       serialization.lib org.apache.hadoop.hive.ql.io.orc.OrcSerde |
+|                     serde: org.apache.hadoop.hive.ql.io.orc.OrcSerde |
+|                     name: taxi.trips_orc           |
+|                   name: taxi.trips_orc             |
+|             Truncated Path -> Alias:               |
+|               /taxi.db/trips_orc/pickup_month=2024-01 [trips_orc] |
+|         Reducer 2                                  |
+|             Execution mode: vectorized             |
+|             Needs Tagging: false                   |
+|             Reduce Operator Tree:                  |
+|               Group By Operator                    |
+|                 aggregations: count(VALUE._col0)   |
+|                 mode: mergepartial                 |
+|                 outputColumnNames: _col0           |
+|                 Statistics: Num rows: 1 Data size: 8 Basic stats: COMPLETE Column stats: COMPLETE |
+|                 File Output Operator               |
+|                   bucketingVersion: 2              |
+|                   compressed: false                |
+|                   GlobalTableId: 0                 |
+|                   directory: hdfs://namenode:8020/user/hive/warehouse/results-9c50d573-8490-432b-8960-3cad483cbfe9/0ba7a358-6131-4f13-b844-bdc5cf10e38b/.hive-staging_hive_2026-10-30_10-35-03_592_2941278492604305468-10/-ext-10002 |
++----------------------------------------------------+
+|                      Explain                       |
++----------------------------------------------------+
+|                   NumFilesPerFileSink: 1           |
+|                   Statistics: Num rows: 1 Data size: 8 Basic stats: COMPLETE Column stats: COMPLETE |
+|                   Stats Publishing Key Prefix: hdfs://namenode:8020/user/hive/warehouse/results-9c50d573-8490-432b-8960-3cad483cbfe9/0ba7a358-6131-4f13-b844-bdc5cf10e38b/.hive-staging_hive_2026-10-30_10-35-03_592_2941278492604305468-10/-ext-10002/ |
+|                   table:                           |
+|                       input format: org.apache.hadoop.mapred.SequenceFileInputFormat |
+|                       output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat |
+|                       properties:                  |
+|                         bucketing_version -1       |
+|                         columns _col0              |
+|                         columns.types bigint       |
+|                         escape.delim \             |
+|                         hive.serialization.extend.additional.nesting.levels true |
+|                         serialization.escape.crlf true |
+|                         serialization.format 1     |
+|                         serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe |
+|                       serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe |
+|                   TotalFiles: 1                    |
+|                   GatherStats: false               |
+|                   MultiFileSpray: false            |
+|                                                    |
+|   Stage: Stage-0                                   |
+|     Fetch Operator                                 |
+|       limit: -1                                    |
+|       Processor Tree:                              |
+|         ListSink                                   |
+|                                                    |
++----------------------------------------------------+
+126 rows selected (0.158 seconds)
+INFO  : Compiling command(queryId=hive_20261030103503_79988eb3-ddd4-440f-8fe1-df9ca9c71877): DESCRIBE FORMATTED trips_orc PARTITION (pickup_month = '2024-01')
+INFO  : Semantic Analysis Completed (retrial = false)
+INFO  : Created Hive schema: Schema(fieldSchemas:[FieldSchema(name:col_name, type:string, comment:from deserializer), FieldSchema(name:data_type, type:string, comment:from deserializer), FieldSchema(name:comment, type:string, comment:from deserializer)], properties:null)
+INFO  : Completed compiling command(queryId=hive_20261030103503_79988eb3-ddd4-440f-8fe1-df9ca9c71877); Time taken: 0.06 seconds
+INFO  : Executing command(queryId=hive_20261030103503_79988eb3-ddd4-440f-8fe1-df9ca9c71877): DESCRIBE FORMATTED trips_orc PARTITION (pickup_month = '2024-01')
+INFO  : Starting task [Stage-0:DDL] in serial mode
+INFO  : Completed executing command(queryId=hive_20261030103503_79988eb3-ddd4-440f-8fe1-df9ca9c71877); Time taken: 0.023 seconds
++-----------------------------------+----------------------------------------------------+----------------------------------------------------+
+|             col_name              |                     data_type                      |                      comment                       |
++-----------------------------------+----------------------------------------------------+----------------------------------------------------+
+| vendorid                          | int                                                |                                                    |
+| tpep_pickup_datetime              | timestamp                                          |                                                    |
+| tpep_dropoff_datetime             | timestamp                                          |                                                    |
+| passenger_count                   | bigint                                             |                                                    |
+| trip_distance                     | double                                             |                                                    |
+| ratecodeid                        | bigint                                             |                                                    |
+| store_and_fwd_flag                | string                                             |                                                    |
+| pulocationid                      | int                                                |                                                    |
+| dolocationid                      | int                                                |                                                    |
+| payment_type                      | bigint                                             |                                                    |
+| fare_amount                       | double                                             |                                                    |
+| extra                             | double                                             |                                                    |
+| mta_tax                           | double                                             |                                                    |
+| tip_amount                        | double                                             |                                                    |
+| tolls_amount                      | double                                             |                                                    |
+| improvement_surcharge             | double                                             |                                                    |
+| total_amount                      | double                                             |                                                    |
+| congestion_surcharge              | double                                             |                                                    |
+| airport_fee                       | double                                             |                                                    |
+|                                   | NULL                                               | NULL                                               |
+| # Partition Information           | NULL                                               | NULL                                               |
+| # col_name                        | data_type                                          | comment                                            |
+| pickup_month                      | string                                             |                                                    |
+|                                   | NULL                                               | NULL                                               |
+| # Detailed Partition Information  | NULL                                               | NULL                                               |
+| Partition Value:                  | [2024-01]                                          | NULL                                               |
+| Database:                         | taxi                                               | NULL                                               |
+| Table:                            | trips_orc                                          | NULL                                               |
+| CreateTime:                       | Fri Oct 30 10:32:56 GMT 2026                       | NULL                                               |
+49 rows selected (0.101 seconds)
+| LastAccessTime:                   | UNKNOWN                                            | NULL                                               |
+| Location:                         | hdfs://namenode:8020/user/hive/warehouse/taxi.db/trips_orc/pickup_month=2024-01 | NULL                                               |
+| Partition Parameters:             | NULL                                               | NULL                                               |
+|                                   | COLUMN_STATS_ACCURATE                              | {\"BASIC_STATS\":\"true\",\"COLUMN_STATS\":{\"airport_fee\":\"true\",\"congestion_surcharge\":\"true\",\"dolocationid\":\"true\",\"extra\":\"true\",\"fare_amount\":\"true\",\"improvement_surcharge\":\"true\",\"mta_tax\":\"true\",\"passenger_count\":\"true\",\"payment_type\":\"true\",\"pulocationid\":\"true\",\"ratecodeid\":\"true\",\"store_and_fwd_flag\":\"true\",\"tip_amount\":\"true\",\"tolls_amount\":\"true\",\"total_amount\":\"true\",\"tpep_dropoff_datetime\":\"true\",\"tpep_pickup_datetime\":\"true\",\"trip_distance\":\"true\",\"vendorid\":\"true\"}} |
+|                                   | numFiles                                           | 1                                                  |
+|                                   | numRows                                            | 2964606                                            |
+|                                   | rawDataSize                                        | 825604496                                          |
+|                                   | totalSize                                          | 52621888                                           |
+|                                   | transient_lastDdlTime                              | 1793356376                                         |
+|                                   | NULL                                               | NULL                                               |
+| # Storage Information             | NULL                                               | NULL                                               |
+| SerDe Library:                    | org.apache.hadoop.hive.ql.io.orc.OrcSerde          | NULL                                               |
+| InputFormat:                      | org.apache.hadoop.hive.ql.io.orc.OrcInputFormat    | NULL                                               |
+| OutputFormat:                     | org.apache.hadoop.hive.ql.io.orc.OrcOutputFormat   | NULL                                               |
+| Compressed:                       | No                                                 | NULL                                               |
+| Num Buckets:                      | -1                                                 | NULL                                               |
+| Bucket Columns:                   | []                                                 | NULL                                               |
+| Sort Columns:                     | []                                                 | NULL                                               |
+| Storage Desc Params:              | NULL                                               | NULL                                               |
+|                                   | serialization.format                               | 1                                                  |
++-----------------------------------+----------------------------------------------------+----------------------------------------------------+
+Beeline version 4.2.1 by Apache Hive
+Closing: 0: jdbc:hive2://localhost:10000/

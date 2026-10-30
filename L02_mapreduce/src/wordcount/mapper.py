@@ -14,6 +14,5 @@ import sys
 WORD = re.compile(r"[a-z][a-z']*")
 
 for line in sys.stdin:
-    # TODO 1: lower-case the line, find all words with WORD.findall(...)
-    #         and print "<word>\t1" for each of them.
-    pass
+    for word in WORD.findall(line.lower()):
+        print(f"{word}\t1")

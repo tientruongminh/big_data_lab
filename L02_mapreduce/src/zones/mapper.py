@@ -20,13 +20,12 @@ zones = {}
 if os.path.exists("taxi_zone_lookup.csv"):
     with open("taxi_zone_lookup.csv", newline="") as f:
         for row in csv.DictReader(f):  # header: LocationID,Borough,Zone,service_zone
-            # TODO 4: fill the dict:  "132" -> "Queens/JFK Airport"
-            pass
+            zones[row["LocationID"]] = f"{row['Borough']}/{row['Zone']}"
 
 for line in sys.stdin:
     fields = line.rstrip("\n").split(",")
-    # TODO 5: skip malformed lines (too few fields or non-numeric PULocationID) and
-    #         count them with a Hadoop counter by writing to STDERR:
-    #             sys.stderr.write("reporter:counter:TaxiLab,BAD_RECORDS,1\n")
-    # TODO 6: print "<zone name or id>\t1"
-    pass
+    if len(fields) <= PU_COL or not fields[PU_COL].strip().isdigit():
+        sys.stderr.write("reporter:counter:TaxiLab,BAD_RECORDS,1\n")
+        continue
+    pu = fields[PU_COL].strip()
+    print(f"{zones.get(pu, pu)}\t1")

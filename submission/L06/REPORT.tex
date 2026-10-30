@@ -1,0 +1,337 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
+\documentclass[
+  11pt,
+]{article}
+\usepackage{xcolor}
+\usepackage[margin=2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+    \setmainfont[]{DejaVu Serif}
+    \setsansfont[]{DejaVu Sans}
+    \setmonofont[Scale=0.85]{Liberation Mono}
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+\ifLuaTeX
+\usepackage[bidi=basic]{babel}
+\else
+\usepackage[bidi=default]{babel}
+\fi
+\babelprovide[main,import]{vietnamese}
+\ifPDFTeX
+\else
+\babelfont{rm}[]{DejaVu Serif}
+\fi
+% get rid of language-specific shorthands (see #6817):
+\let\LanguageShortHands\languageshorthands
+\def\languageshorthands#1{}
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{fvextra}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,breakanywhere,commandchars=\\\{\}}
+\fvset{breaklines,breakanywhere}
+\usepackage{float}
+\floatplacement{figure}{H}
+\renewcommand{\figurename}{Hình}
+\renewcommand{\tablename}{Bảng}
+\renewcommand{\contentsname}{Mục lục}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdflang={vi},
+  colorlinks=true,
+  linkcolor={Maroon},
+  filecolor={Maroon},
+  citecolor={Blue},
+  urlcolor={Blue},
+  pdfcreator={LaTeX via pandoc}}
+
+\author{}
+\date{}
+
+\begin{document}
+
+\section{L06 --- Spark performance: shuffle, join, skew, AQE,
+partitioning,
+cache}\label{l06-spark-performance-shuffle-join-skew-aqe-partitioning-cache}
+
+Môi trường: Spark 4.1.3 \texttt{local{[}4{]}}, driver 2 GB. Dữ liệu:
+taxi 2024-01 (2.96 triệu dòng) và một fact tổng hợp 10 triệu dòng, trong
+đó 60 \% có key = 0. Script được chạy \textbf{2 lần}; báo cáo dùng lần
+2.
+
+\subsection{File nộp}\label{file-nux1ed9p}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+File
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Nội dung
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{l06\_experiments.py} & TODO 1--4: E1 AQE on, E2 hint
+\texttt{broadcast()}, E3 salting và AQE skew join \\
+\texttt{results.csv} & 34 dòng (2 lần chạy × 17 variant) \\
+\texttt{RESULTS.md} & bảng lần 2, nhận xét E1--E5, khuyến nghị cho
+cluster 20 node \\
+\texttt{01\_run1.txt}, \texttt{02\_run2.txt} & log console \\
+\texttt{03\_e3\_task\_quantiles.txt} & phân vị thời gian task và số bản
+ghi shuffle/task (REST API) \\
+\end{longtable}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/code_l06_experiments.png}}
+\caption{code}
+\end{figure}
+
+\subsection{Bảng kết quả (lần
+2)}\label{bux1ea3ng-kux1ebft-quux1ea3-lux1ea7n-2}
+
+\pandocbounded{\includegraphics[keepaspectratio]{img/01_run2_console.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/02_run2_results_table.png}}
+
+Bảng đầy đủ, nhận xét từng thí nghiệm và khuyến nghị nằm trong
+\href{RESULTS.md}{\texttt{RESULTS.md}}.
+
+\subsection{Bằng chứng trên Spark
+UI}\label{bux1eb1ng-chux1ee9ng-truxean-spark-ui}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/21_ui_e1_aqe_off_200.png}}
+\caption{\textbf{E1}: AQE off, 200 partition → \texttt{Exchange} 200
+partition}
+\end{figure}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/22_ui_e1_aqe_on_coalesced.png}}
+\caption{\textbf{E1}: AQE on → \texttt{AQEShuffleRead} \emph{coalesced}}
+\end{figure}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/23_ui_e2_broadcast.png}}
+\caption{\textbf{E2}: \texttt{BroadcastExchange} +
+\texttt{BroadcastHashJoin}}
+\end{figure}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/24_ui_e2_sortmerge.png}}
+\caption{\textbf{E2}: threshold -1 → \texttt{Exchange} + \texttt{Sort}
+hai phía + \texttt{SortMergeJoin}}
+\end{figure}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/25_ui_e3_skew_baseline_smj.png}}
+\caption{\textbf{E3}: baseline SMJ}
+\end{figure}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/26_ui_e3_aqe_skew_join.png}}
+\caption{\textbf{E3}: AQE → \texttt{AQEShuffleRead} (\emph{skewed
+partitions: 1, splits: 4, partitions: 19}) +
+\texttt{SortMergeJoin(skew=true)}}
+\end{figure}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/27_ui_storage_e5_cache.png}}
+\caption{\textbf{E5}: Storage tab, \texttt{cleaned} cache 8/8 partition,
+100 \%, 59.4 MiB}
+\end{figure}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/20_ui_sql_list.png}}
+\caption{Danh sách SQL query}
+\end{figure}
+
+\subsubsection{Skew: Summary Metrics của stage
+join}\label{skew-summary-metrics-cux1ee7a-stage-join}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Stage
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Task time min / median / max
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Shuffle records median / max
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+42: baseline, AQE off & 140 / 165 / \textbf{2,366 ms} & 262,619 /
+\textbf{6,264,438} (61.9 MiB, so với 3.4 MiB) \\
+46: salting 64 & 308 / 590 / 1,197 ms & 638,133 / 917,267 \\
+52: AQE skew join & 129 / 186 / 682 ms & 262,677 / 1,576,365 (≈ 6.26 M /
+4) \\
+\end{longtable}
+
+\pandocbounded{\includegraphics[keepaspectratio]{img/03_e3_task_quantiles.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/30_ui_e3_baseline_stage42_summary.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/31_ui_e3_salted_stage46_summary.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/32_ui_e3_aqe_stage52_summary.png}}
+
+\subsection{Trả lời checkpoint}\label{trux1ea3-lux1eddi-checkpoint}
+
+\textbf{Q1.} Kết quả \texttt{groupBy(PU,\ DO)} chỉ có vài MB, khoảng 20
+nghìn nhóm. 200 partition nghĩa là 204 task, mỗi task chạy 6 ms; chi phí
+lập lịch, serialize và khởi tạo task áp đảo, nên mất 2.2 s so với 0.33 s
+khi dùng 8 partition. \texttt{shuffle.partitions=1} nhanh ở đây chỉ vì
+dữ liệu shuffle tí hon. Trên dữ liệu thật, một reducer phải xử lý
+\textbf{toàn bộ} shuffle: không có song song, spill ra đĩa, dễ OOM. Quy
+tắc: khoảng 100--200 MB mỗi partition shuffle, hoặc để AQE tự quyết.
+
+\textbf{Q2.} Sau khi stage map của shuffle chạy xong, AQE có
+\textbf{thống kê thật} về kích thước từng partition shuffle (map output
+statistics). \texttt{AQEShuffleRead\ coalesced} cho một reducer đọc gộp
+nhiều partition nhỏ liền kề cho tới khi đạt
+\texttt{advisoryPartitionSizeInBytes}. Nhờ đó 200 partition chỉ còn 1
+task reduce (tổng 5 task, thay vì 204). Planner tĩnh chỉ có \textbf{ước
+lượng} (kích thước file), và ước lượng thường sai sau filter, join hay
+aggregate.
+
+\textbf{Q3.} Con số chứng minh skew là \textbf{task max \(\gg\) median}
+ở stage join: 2,366 ms so với 165 ms (khoảng 14×). Task đó đọc 6.26
+triệu bản ghi trong khi median chỉ 262 nghìn. Salting giảm straggler
+(max 1,197 ms) nhưng \textbf{wall-clock gần như không đổi} (4.10 → 4.01
+s). Lý do: - Nó thêm việc ở mọi nơi: \texttt{rand()} cho mỗi dòng, thêm
+cột join, 64 bản sao dim. - 6 triệu dòng hot vẫn phải chia trên 16
+partition × 4 core, nên median tăng từ 165 lên 590 ms. Với 4 core, tổng
+công việc là như nhau, chỉ phân bổ lại.
+
+Salting thắng rõ khi có \textbf{nhiều core và partition}: straggler sẽ
+giữ hàng trăm executor ngồi chờ. Nó cũng thắng khi công việc trên mỗi
+dòng nặng (dòng rộng, join many-to-many, spill), hoặc khi skew nặng hơn
+(ví dụ 90 \% hot).
+
+\textbf{Q4.} Một partition bị coi là skew khi kích thước của nó
+\textbf{lớn hơn \texttt{skewedPartitionFactor} × median} \textbf{và} lớn
+hơn \texttt{skewedPartitionThresholdInBytes}. - Mặc định là 5× và 256
+MB; lab hạ xuống 3× và 16 MB. - Ở đây partition hot 61.9 MiB so với
+median 3.4 MiB.
+
+AQE \textbf{tách} partition đó thành nhiều task theo khoảng map output
+(ở đây 4 split, nên 16 → 19 partition), rồi \textbf{nhân bản} partition
+tương ứng của phía bên kia. Plan khi đó hiện
+\texttt{SortMergeJoin(skew=true)}.
+
+Giới hạn của AQE so với salting: - chỉ áp dụng cho join có shuffle ở cả
+hai phía (SMJ hoặc shuffled hash); - không áp dụng cho mọi kiểu join
+(không tách được phía cần giữ nguyên của outer join); - cần ngưỡng hợp
+với dữ liệu; - \textbf{không xử lý skew trong \texttt{groupBy}} hay skew
+sau join. Salting, hay aggregate hai pha, xử lý được những trường hợp
+này.
+
+\textbf{Q5.} Không nên broadcast dù một bên ``nhỏ'' khi: - bảng đó vẫn
+lớn trong bộ nhớ: driver phải collect trước rồi gửi bản sao tới mọi
+executor, gây OOM driver hoặc broadcast timeout; - thống kê \textbf{đánh
+giá thấp} kích thước, ví dụ sau filter hay UDF; - là \textbf{full outer
+join} (không hỗ trợ), hoặc phía cần broadcast là phía được giữ của outer
+join; - join chạy lặp lại nhiều lần trên dữ liệu thay đổi, nên mỗi lần
+phải dựng lại broadcast.
+
+\textbf{Q6.} - \texttt{repartition(n)} \textbf{luôn shuffle}: partition
+cân bằng (4 file đều nhau), và stage trước giữ nguyên song song. Cái giá
+là thêm một shuffle (4.40 s). - \texttt{coalesce(n)} gộp partition sẵn
+có \textbf{không shuffle}: rẻ (3.12 s), nhưng \textbf{có thể tạo file
+lệch}. Ở đây chỉ ra 3 file vì input chỉ có 3 row group, nên một
+partition rỗng. - Vì \texttt{coalesce} là narrow dependency, nó
+\textbf{giảm song song của cả stage trước}: \texttt{coalesce(1)} chạy
+scan và ghi trong \textbf{1 task} (6,800 ms).
+
+\textbf{Q7.} DataFrame được cache là kết quả của một bước \textbf{đắt}
+(\texttt{dropDuplicates}, shuffle toàn bộ khoảng 3 triệu dòng) và được
+dùng lại 3 lần. - Không cache: dedup chạy 3 lần, 6.40 s. - Có cache:
+dedup chạy 1 lần (3.42 s) rồi 3 query chỉ còn 0.99 s.
+
+Một scan Parquet thuần, đã prune cột, thì vốn rẻ: đọc vectorized, có
+column pruning và predicate pushdown. Cache khi đó chỉ tốn bộ nhớ và
+thời gian materialize, gần như không lợi. Quy tắc: cache cái \textbf{đắt
+và được dùng lại}, rồi \texttt{unpersist()}.
+
+\textbf{Q8.} Checklist trước khi mua thêm phần cứng: 1. \textbf{Đọc plan
+và Spark UI}: tìm stage chậm nhất, spill, GC, và tỉ lệ task max/median
+để phát hiện skew. 2. \textbf{Lọc và chọn cột sớm}: partition pruning,
+predicate/column pushdown, dùng định dạng cột (Parquet/ORC). 3.
+\textbf{Kích thước partition shuffle hợp lý}: bật AQE (coalesce và skew
+join), khoảng 100--200 MB mỗi partition. 4. \textbf{Chọn đúng chiến lược
+join}: broadcast bảng nhỏ; với skew thì dùng AQE skew join, salting,
+hoặc tách hot key. 5. \textbf{Tránh UDF Python} (dùng hàm built-in hoặc
+pandas UDF), \textbf{cache có chọn lọc}, và \textbf{tránh file nhỏ} khi
+ghi (repartition hoặc compaction).
+
+\end{document}

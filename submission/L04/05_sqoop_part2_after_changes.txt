@@ -1,0 +1,36 @@
+### 4b. exec the saved job -> only the NEW orders are appended
+2026-10-30 10:46:10,820 INFO tool.ImportTool: Lower bound value: 5000
+2026-10-30 10:46:10,821 INFO tool.ImportTool: Upper bound value: 5003
+2026-10-30 10:46:28,335 INFO mapreduce.ImportJobBase: Retrieved 3 records.
+incremental.last.value = 5003
+Found 3 items
+-rw-r--r--   1 root supergroup     528815 2026-10-30 10:45 /data/olist/sqoop/orders_append/part-m-00000
+-rw-r--r--   1 root supergroup     529172 2026-10-30 10:45 /data/olist/sqoop/orders_append/part-m-00001
+-rw-r--r--   1 root supergroup        420 2026-10-30 10:46 /data/olist/sqoop/orders_append/part-m-00002
+rows in append dir: 5003
+### 5. incremental LASTMODIFIED + --merge-key: new AND updated rows, merged into the snapshot
+using --last-value '2026-10-30 10:45:15.732385'
+2026-10-30 10:46:35,899 INFO tool.ImportTool: Lower bound value: '2026-10-30 10:45:15.732385'
+2026-10-30 10:46:35,899 INFO tool.ImportTool: Upper bound value: '2026-10-30 10:46:35.897666'
+		Merged Map outputs=0
+2026-10-30 10:46:50,942 INFO mapreduce.ImportJobBase: Retrieved 5 records.
+2026-10-30 10:46:50,945 INFO tool.ImportTool: Final destination exists, will run merge job.
+		Merged Map outputs=2
+2026-10-30 10:47:21,419 INFO tool.ImportTool:   --last-value 2026-10-30 10:46:35.897666
+Found 2 items
+-rw-r--r--   1 root supergroup          0 2026-10-30 10:47 /data/olist/sqoop/orders_lastmod/_SUCCESS
+-rw-r--r--   1 root supergroup    1058459 2026-10-30 10:47 /data/olist/sqoop/orders_lastmod/part-r-00000
+rows in lastmod dir: 5003   (= baseline + the new orders; updated orders were replaced in place, not duplicated)
+0c83fcfb71e8bc5b9e8b3a73f7140d4f,201747a216850606f49c716719a837ad,created,2026-10-30 10:46:07.0,\N,\N,\N,\N,5002,2026-10-30 10:46:07.357187
+65a11c7df0f6c77c1688232a1107044f,d51eb5503b9ff6e63bb39685d32577a2,delivered,2017-03-03 11:33:42.0,2017-03-03 11:56:42.0,2017-03-04 15:56:42.0,2026-10-30 10:46:07.0,2017-03-23 00:00:00.0,278,2026-10-30 10:46:07.361794
+7008b2a0e1ffae9397506c90fb4eab1b,af3b0010d669e4b210716eae69c81c2d,created,2026-10-30 10:46:07.0,\N,\N,\N,\N,5003,2026-10-30 10:46:07.357187
+8a7ac9a44f356814c2311987dcd8ad10,155e17e9b120e25f6a64f2c8efe2a650,delivered,2017-02-03 10:49:42.0,2017-02-03 10:54:42.0,2017-02-09 09:54:42.0,2026-10-30 10:46:07.0,2017-02-23 00:00:00.0,139,2026-10-30 10:46:07.361794
+b66d7d8bbcad4568830448d9d663fac5,a26322435a248248b86845ebe0587466,created,2026-10-30 10:46:07.0,\N,\N,\N,\N,5001,2026-10-30 10:46:07.357187
+### 6. export: HDFS -> new Postgres table orders_copy
+2026-10-30 10:47:51,093 INFO mapreduce.ExportJobBase: Transferred 1.0094 MB in 18.4353 seconds (56.0684 KB/sec)
+2026-10-30 10:47:51,095 INFO mapreduce.ExportJobBase: Exported 5000 records.
+------------------------
+| rows_exported        | 
+------------------------
+| 5000                 | 
+------------------------

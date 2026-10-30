@@ -1,0 +1,4 @@
+19 $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768 stages [25] skipped 0 tasks 1
+20 $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768 stages [26] skipped 0 tasks 1
+21 $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768 stages [27] skipped 0 tasks 4
+22 $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768 stages [28, 29] skipped 1 tasks 5

@@ -10,6 +10,7 @@ CREATE TABLE trips_bucketed (
   total_amount DOUBLE
 )
 -- TODO 6: bucket by pulocationid into 4 buckets, sorted by pulocationid
+CLUSTERED BY (pulocationid) SORTED BY (pulocationid) INTO 4 BUCKETS
 STORED AS ORC;
 
 INSERT OVERWRITE TABLE trips_bucketed

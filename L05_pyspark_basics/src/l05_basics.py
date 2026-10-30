@@ -24,6 +24,7 @@ def banner(title):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--hold", type=int, default=0, help="seconds to keep the app (and UI :4040) alive at the end")
+    ap.add_argument("--no-repartition", action="store_true", help="TODO 7: write without repartition('pickup_date')")
     args = ap.parse_args()
 
     # ------------------------------------------------------------------ 1. SparkSession + read
@@ -57,8 +58,7 @@ def main():
     # ------------------------------------------------------------------ 3. cleaning
     banner("3. Data quality and cleaning")
     # TODO 1: build ONE row with the number of NULLs per column
-    #         hint: [F.sum(F.col(c).isNull().cast("int")).alias(c) for c in trips.columns]
-    null_counts = trips.limit(0)
+    null_counts = trips.select([F.sum(F.col(c).isNull().cast("int")).alias(c) for c in trips.columns])
     null_counts.show(vertical=True)
 
     trips = (trips
@@ -69,8 +69,10 @@ def main():
     rules = {
         "pickup outside the file's month(s)": ~F.date_format("pickup_ts", "yyyy-MM").isin(months),
         "negative or zero fare": F.col("fare_amount") <= 0,
-        # TODO 2: add rules for: negative total_amount, trip_distance <= 0 or > 100,
-        #         duration_min <= 0 or > 360
+        # TODO 2
+        "negative total": F.col("total_amount") < 0,
+        "distance <= 0 or > 100 miles": (F.col("trip_distance") <= 0) | (F.col("trip_distance") > 100),
+        "duration <= 0 or > 6 h": (F.col("duration_min") <= 0) | (F.col("duration_min") > 360),
     }
     # one pass to count every rule (conditional aggregation)
     trips.select([F.sum(cond.cast("int")).alias(name) for name, cond in rules.items()]).show(vertical=True, truncate=False)
@@ -92,14 +94,22 @@ def main():
     banner("4. Join with the zone lookup (pickup and dropoff)")
     # TODO 3: join clean with zones TWICE: once on PULocationID (-> pu_borough, pu_zone) and once on
     #         DOLocationID (-> do_borough, do_zone). Rename the zone columns before each join.
-    enriched = clean.withColumn("pu_borough", F.lit(None)).withColumn("pu_zone", F.lit(None)) \
-                    .withColumn("do_borough", F.lit(None)).withColumn("do_zone", F.lit(None))
+    pu = zones.select(F.col("LocationID").alias("PULocationID"), F.col("Borough").alias("pu_borough"),
+                      F.col("Zone").alias("pu_zone"))
+    do = zones.select(F.col("LocationID").alias("DOLocationID"), F.col("Borough").alias("do_borough"),
+                      F.col("Zone").alias("do_zone"))
+    enriched = clean.join(pu, "PULocationID", "left").join(do, "DOLocationID", "left")
     enriched.select("pickup_ts", "pu_borough", "pu_zone", "do_borough", "do_zone", "total_amount").show(5, False)
 
     # ------------------------------------------------------------------ 5. groupBy / agg
     banner("5. groupBy / agg")
     # TODO 4: per pu_borough: trips (count), avg_fare, avg_tip_pct, avg_miles -- ordered by trips desc
-    by_borough = enriched.groupBy("pu_borough").count()
+    by_borough = (enriched.groupBy("pu_borough")
+                  .agg(F.count("*").alias("trips"),
+                       F.round(F.avg("fare_amount"), 2).alias("avg_fare"),
+                       F.round(F.avg("tip_pct"), 1).alias("avg_tip_pct"),
+                       F.round(F.avg("trip_distance"), 2).alias("avg_miles"))
+                  .orderBy(F.desc("trips")))
     by_borough.show()
     by_hour = enriched.groupBy("pickup_hour").agg(F.count("*").alias("trips")).orderBy("pickup_hour")
     by_hour.show(24)
@@ -108,12 +118,18 @@ def main():
     banner("6. Window functions")
     zone_counts = enriched.groupBy("pu_borough", "pu_zone").agg(F.count("*").alias("trips"))
     # TODO 5: top-3 pickup zones per borough with dense_rank() over a window partitioned by pu_borough
-    top3 = zone_counts
+    w_rank = Window.partitionBy("pu_borough").orderBy(F.desc("trips"))
+    top3 = (zone_counts.withColumn("rank", F.dense_rank().over(w_rank))
+            .filter("rank <= 3").orderBy("pu_borough", "rank"))
     top3.show(30, truncate=False)
 
     daily = enriched.groupBy("pickup_date").agg(F.count("*").alias("trips"), F.round(F.sum("total_amount")).cast("long").alias("revenue"))
     w_day = Window.orderBy("pickup_date")
     # TODO 6: add prev_day_trips (lag), dod_change_pct and running_revenue (sum over rows unbounded preceding)
+    daily = (daily.withColumn("prev_day_trips", F.lag("trips").over(w_day))
+             .withColumn("dod_change_pct", F.round((F.col("trips") / F.col("prev_day_trips") - 1) * 100, 1))
+             .withColumn("running_revenue", F.sum("revenue").over(w_day.rowsBetween(Window.unboundedPreceding, 0)))
+             .orderBy("pickup_date"))
     daily.show(10)
 
     # ------------------------------------------------------------------ 7. Spark SQL
@@ -138,6 +154,12 @@ def main():
     banner("10. Write partitioned Parquet and read it back")
     # TODO 7: write enriched (without pickup_ts) as Parquet to OUTPUT, partitioned by pickup_date,
     #         mode overwrite. Try it first WITHOUT and then WITH .repartition("pickup_date") -- count the files.
+    out = enriched.drop("pickup_ts")
+    if not args.no_repartition:
+        out = out.repartition("pickup_date")    # one task (-> one file) per date instead of N files per date
+    t0 = time.time()
+    out.write.mode("overwrite").partitionBy("pickup_date").parquet(OUTPUT)
+    print(f"write (repartition={not args.no_repartition}) took {time.time() - t0:.1f} s")
     back = spark.read.parquet(OUTPUT)
     print("partitions (dates) written:", back.select("pickup_date").distinct().count())
     one_day = back.filter(F.col("pickup_date") == "2024-01-15")

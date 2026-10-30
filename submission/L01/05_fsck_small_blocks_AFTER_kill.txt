@@ -1,0 +1,29 @@
+/data/taxi/small_blocks <dir>
+/data/taxi/small_blocks/yellow_tripdata_2024-01.parquet 49961641 bytes, replicated: replication=2, 3 block(s):  OK
+0. BP-361839436-172.29.0.7-1793355266756:blk_1073741828_1004 len=16777216 Live_repl=2  [DatanodeInfoWithStorage[172.29.0.5:9866,DS-a13511a4-4968-49b1-af9d-4b33712c6021,DISK], DatanodeInfoWithStorage[172.29.0.2:9866,DS-abdc23f4-4959-47fa-b34b-0829bd838ae0,DISK]]
+1. BP-361839436-172.29.0.7-1793355266756:blk_1073741829_1005 len=16777216 Live_repl=2  [DatanodeInfoWithStorage[172.29.0.5:9866,DS-a13511a4-4968-49b1-af9d-4b33712c6021,DISK], DatanodeInfoWithStorage[172.29.0.2:9866,DS-abdc23f4-4959-47fa-b34b-0829bd838ae0,DISK]]
+2. BP-361839436-172.29.0.7-1793355266756:blk_1073741830_1006 len=16407209 Live_repl=2  [DatanodeInfoWithStorage[172.29.0.5:9866,DS-a13511a4-4968-49b1-af9d-4b33712c6021,DISK], DatanodeInfoWithStorage[172.29.0.2:9866,DS-abdc23f4-4959-47fa-b34b-0829bd838ae0,DISK]]
+Status: HEALTHY
+ Number of data-nodes:	2
+ Number of racks:		1
+ Total dirs:			1
+ Total symlinks:		0
+Replicated Blocks:
+ Total size:	49961641 B
+ Total files:	1
+ Total blocks (validated):	3 (avg. block size 16653880 B)
+ Minimally replicated blocks:	3 (100.0 %)
+ Over-replicated blocks:	0 (0.0 %)
+ Under-replicated blocks:	0 (0.0 %)
+ Mis-replicated blocks:		0 (0.0 %)
+ Default replication factor:	3
+ Average block replication:	2.0
+ Missing blocks:		0
+ Corrupt blocks:		0
+ Missing replicas:		0 (0.0 %)
+ Blocks queued for replication:	0
+ Total size:	0 B
+ Total files:	0
+ Blocks queued for replication:	0
+FSCK ended at Fri Oct 30 10:18:38 UTC 2026 in 1 milliseconds
+The filesystem under path '/data/taxi/small_blocks' is HEALTHY

@@ -1,0 +1,60 @@
+### run 1 (no watermark yet)
+$ spark-submit spark_jdbc_ingest.py --step incremental
+watermark: (1970-01-01 00:00:00, 2026-10-30 10:51:08.121235]
+changed rows since last run: 5003
++---------+--------------------------------+------------+-------------------+
+|order_seq|order_id                        |order_status|updated_at         |
++---------+--------------------------------+------------+-------------------+
+|13       |8fcda0cbaf5fbdf74b44ec00ad898b16|invoiced    |2017-01-04 08:28:34|
+|9        |3e72f2038b375f7cffb84634e058a90d|delivered   |2017-01-08 03:33:57|
+|10       |04e531031c4460209ab391b1ecd08b73|delivered   |2017-01-09 14:43:54|
+|14       |b9215ed78670f5fcdd902dd20d25ddfa|delivered   |2017-01-10 08:30:04|
+|1        |7fde1c0d7fe0422f9f39c260b2a00fe0|delivered   |2017-01-11 06:01:41|
+|7        |4dc8028f24056a2745258e340b6f0acb|delivered   |2017-01-11 17:59:16|
+|16       |a8b568029838e24b62999f248b689a46|delivered   |2017-01-12 10:25:07|
+|5        |45358698bf0058ceccd0ba051b389c3e|delivered   |2017-01-12 18:46:29|
+|11       |78565a07e33b7cee0300e9a0dd9b165d|delivered   |2017-01-12 20:29:04|
+|4        |94210b260a31271221a4b2385b509571|delivered   |2017-01-13 14:17:16|
++---------+--------------------------------+------------+-------------------+
+only showing top 10 rows
+change-log rows: 5003 | current snapshot rows: 5003
+saved watermark 2026-10-30 10:51:08.121235
+
+### $ psql -f sql/simulate_changes.sql   (#2)
+INSERT 0 3
+UPDATE 2
+ order_seq |             order_id             | order_status |         updated_at         
+-----------+----------------------------------+--------------+----------------------------
+      5004 | 7fcdf5479024a8742073bb0ef6935142 | created      | 2026-10-30 10:51:17.171709
+      5005 | 074912012cd67af7286f9d65fda97044 | created      | 2026-10-30 10:51:17.171709
+      5006 | 87aa76620ff952a3c59e109b75a627fb | created      | 2026-10-30 10:51:17.171709
+       337 | 9914cbc8175f775efa350b76cb42c257 | delivered    | 2026-10-30 10:51:17.175487
+       355 | d95630b6b34b9e5fc509a5d750b0fa66 | delivered    | 2026-10-30 10:51:17.175487
+(5 rows)
+
+### run 2 (after simulate_changes)
+$ spark-submit spark_jdbc_ingest.py --step incremental
+watermark: (2026-10-30 10:51:08.121235, 2026-10-30 10:51:26.913767]
+changed rows since last run: 5
++---------+--------------------------------+------------+--------------------------+
+|order_seq|order_id                        |order_status|updated_at                |
++---------+--------------------------------+------------+--------------------------+
+|5004     |7fcdf5479024a8742073bb0ef6935142|created     |2026-10-30 10:51:17.171709|
+|5005     |074912012cd67af7286f9d65fda97044|created     |2026-10-30 10:51:17.171709|
+|5006     |87aa76620ff952a3c59e109b75a627fb|created     |2026-10-30 10:51:17.171709|
+|337      |9914cbc8175f775efa350b76cb42c257|delivered   |2026-10-30 10:51:17.175487|
+|355      |d95630b6b34b9e5fc509a5d750b0fa66|delivered   |2026-10-30 10:51:17.175487|
++---------+--------------------------------+------------+--------------------------+
+change-log rows: 5008 | current snapshot rows: 5006
+saved watermark 2026-10-30 10:51:26.913767
+
+### run 3 (no changes)
+$ spark-submit spark_jdbc_ingest.py --step incremental
+watermark: (2026-10-30 10:51:26.913767, 2026-10-30 10:51:44.317579]
+changed rows since last run: 0
++---------+--------+------------+----------+
+|order_seq|order_id|order_status|updated_at|
++---------+--------+------------+----------+
++---------+--------+------------+----------+
+change-log rows: 5008 | current snapshot rows: 5006
+saved watermark 2026-10-30 10:51:44.317579

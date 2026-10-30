@@ -1,0 +1,11 @@
+$ find output/trips_clean -name '*.parquet' | wc -l
+31
+$ ls output/trips_clean | head -4
+_SUCCESS
+pickup_date=2024-01-01
+pickup_date=2024-01-02
+pickup_date=2024-01-03
+$ ls output/trips_clean/pickup_date=2024-01-15
+part-00004-df12eb1f-aef8-4976-a9ea-d0d0aaf5303a.c000.snappy.parquet
+$ du -sh output/trips_clean
+73M	output/trips_clean

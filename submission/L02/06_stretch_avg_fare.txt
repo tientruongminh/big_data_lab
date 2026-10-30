@@ -1,0 +1,18 @@
+$ hadoop jar streaming -mapper mapper.py -combiner combiner.py -reducer reducer.py -input /user/root/taxi_csv -output /user/root/avg_fare_out
+2026-10-30 10:28:00,220 INFO mapreduce.Job: Job job_1793355278127_0004 completed successfully
+		Combine input records=1000000
+		Combine output records=1382
+		Reduce shuffle bytes=56289
+$ top 10 zones by trips: zone / avg_fare / trips
+Queens/JFK Airport	59.71	59777
+Manhattan/Midtown Center	15.33	48750
+Manhattan/Upper East Side South	11.91	47260
+Manhattan/Upper East Side North	12.49	45867
+Manhattan/Lincoln Square East	13.30	37424
+Manhattan/Penn Station/Madison Sq West	15.72	37342
+Manhattan/Midtown East	14.71	36421
+Manhattan/Times Sq/Theatre District	18.20	36291
+Queens/LaGuardia Airport	40.87	33240
+Manhattan/Upper West Side South	13.36	30849
+$ check vs local (no combiner) for JFK:
+Queens/JFK Airport	59.71	59777

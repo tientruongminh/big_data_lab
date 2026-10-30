@@ -122,6 +122,8 @@ def e1_shuffle_partitions():
     run("E1", "AQE off, shuffle.partitions=1", q())
     # TODO 1: turn AQE back ON (keep shuffle.partitions=200) and run the same query as
     #         variant "AQE on,  shuffle.partitions=200". What does AQEShuffleRead do?
+    set_conf(spark__sql__adaptive__enabled=True, spark__sql__shuffle__partitions=200)
+    run("E1", "AQE on,  shuffle.partitions=200", q(), "AQE coalesces small shuffle partitions")
 
 
 def e2_broadcast_vs_smj():
@@ -135,6 +137,9 @@ def e2_broadcast_vs_smj():
     set_conf(spark__sql__adaptive__enabled=True, spark__sql__autoBroadcastJoinThreshold=-1)
     # TODO 2: with AQE on and the threshold still -1, force a broadcast join with the F.broadcast()
     #         hint on zones_df() and record it as variant "AQE on,  threshold -1 + broadcast() hint".
+    run("E2", "AQE on,  threshold -1 + broadcast() hint",
+        trips_df().join(F.broadcast(zones_df()), F.col("PULocationID") == F.col("LocationID"))
+        .groupBy("Borough").agg(F.count("*").alias("trips")), "an explicit hint beats the threshold")
 
 
 def skew_inputs():
@@ -166,13 +171,23 @@ def e3_skew():
     #   dim_s : dim rows with key != 0 get salt 0; the dim row with key == 0 is cross-joined with
     #           spark.range(SALT) (as int column "salt") -> SALT copies
     #   salted: fact_s.join(dim_s, ["key", "salt"]) then the same groupBy/agg as `joined`
-    salted = joined
+    hot = F.col("key") == 0
+    fact_s = fact.withColumn("salt", F.when(hot, (F.rand(seed=5) * SALT).cast("int")).otherwise(F.lit(0)))
+    salts = spark.range(SALT).select(F.col("id").cast("int").alias("salt"))
+    dim_s = (dim.filter(~hot).withColumn("salt", F.lit(0))
+             .unionByName(dim.filter(hot).crossJoin(salts)))
+    salted = fact_s.join(dim_s, ["key", "salt"]).groupBy("segment").agg(F.sum("amount").alias("amount"))
     run("E3", f"salted SMJ (salt={SALT}), AQE off", salted)
 
     # Fix 2: AQE skew join -- split the skewed shuffle partition at runtime
     # TODO 4: enable AQE + skew-join handling. Our data is small, so lower the thresholds:
     #         advisoryPartitionSizeInBytes=4m, skewJoin.skewedPartitionThresholdInBytes=16m,
     #         skewJoin.skewedPartitionFactor=3, and disable coalescePartitions for a clean comparison.
+    set_conf(spark__sql__adaptive__enabled=True, spark__sql__adaptive__skewJoin__enabled=True,
+             spark__sql__adaptive__coalescePartitions__enabled=False,
+             spark__sql__adaptive__advisoryPartitionSizeInBytes="4m",
+             spark__sql__adaptive__skewJoin__skewedPartitionThresholdInBytes="16m",
+             spark__sql__adaptive__skewJoin__skewedPartitionFactor=3)
     run("E3", "skewed SMJ, AQE skewJoin on", fact.join(dim, "key").groupBy("segment").agg(F.sum("amount")),
         "look for AQEShuffleRead (skewed) in the SQL tab")
     # sanity: all variants compute the same answer

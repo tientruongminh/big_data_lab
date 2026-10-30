@@ -1,0 +1,13 @@
+wrote 1,000,000 rows -> /lab/L02/work/yellow_2024-01_1M.csv (92.8 MB)
+$ head -2 yellow_2024-01_1M.csv
+2,2024-01-01 00:57:55,2024-01-01 01:17:43,1,1.72,1,N,186,79,2,17.7,1,0.5,0,0,1,22.7,2.5,0
+1,2024-01-01 00:03:00,2024-01-01 00:09:36,1,1.8,1,N,140,236,1,10,3.5,0.5,3.75,0,1,18.75,2.5,0
+$ hdfs fsck /user/root/taxi_csv -files -blocks | grep "block(s)"
+/user/root/taxi_csv/yellow_2024-01_1M.csv 92847108 bytes, replicated: replication=3, 6 block(s):  OK
+$ head -1000 yellow_2024-01_1M.csv | python3 mapper.py | sort | python3 reducer.py | sort -t$'\t' -k2,2nr | head -3
+Manhattan/East Village	59
+Manhattan/Lincoln Square East	55
+Manhattan/Upper West Side South	45
+$ printf "garbage\nx,y,z,a,b,c,d,NOTNUM,1\n" | python3 mapper.py   # bad records -> stderr counter
+reporter:counter:TaxiLab,BAD_RECORDS,1
+reporter:counter:TaxiLab,BAD_RECORDS,1

@@ -1,0 +1,19 @@
+### fsck /data + /tmp after kill
+/data <dir>
+/data/taxi <dir>
+/data/taxi/default_blocks <dir>
+/data/taxi/default_blocks/yellow_tripdata_2024-01.parquet 49961641 bytes, replicated: replication=3, 1 block(s):  Under replicated BP-361839436-172.29.0.7-1793355266756:blk_1073741827_1003. Target Replicas is 3 but found 2 live replica(s), 0 decommissioned replica(s), 0 decommissioning replica(s).
+0. BP-361839436-172.29.0.7-1793355266756:blk_1073741827_1003 len=49961641 Live_repl=2  [DatanodeInfoWithStorage[172.29.0.2:9866,DS-abdc23f4-4959-47fa-b34b-0829bd838ae0,DISK], DatanodeInfoWithStorage[172.29.0.5:9866,DS-a13511a4-4968-49b1-af9d-4b33712c6021,DISK]]
+/data/taxi/small_blocks <dir>
+/data/taxi/small_blocks/yellow_tripdata_2024-01.parquet 49961641 bytes, replicated: replication=2, 3 block(s):  OK
+0. BP-361839436-172.29.0.7-1793355266756:blk_1073741828_1004 len=16777216 Live_repl=2  [DatanodeInfoWithStorage[172.29.0.5:9866,DS-a13511a4-4968-49b1-af9d-4b33712c6021,DISK], DatanodeInfoWithStorage[172.29.0.2:9866,DS-abdc23f4-4959-47fa-b34b-0829bd838ae0,DISK]]
+1. BP-361839436-172.29.0.7-1793355266756:blk_1073741829_1005 len=16777216 Live_repl=2  [DatanodeInfoWithStorage[172.29.0.5:9866,DS-a13511a4-4968-49b1-af9d-4b33712c6021,DISK], DatanodeInfoWithStorage[172.29.0.2:9866,DS-abdc23f4-4959-47fa-b34b-0829bd838ae0,DISK]]
+2. BP-361839436-172.29.0.7-1793355266756:blk_1073741830_1006 len=16407209 Live_repl=2  [DatanodeInfoWithStorage[172.29.0.5:9866,DS-a13511a4-4968-49b1-af9d-4b33712c6021,DISK], DatanodeInfoWithStorage[172.29.0.2:9866,DS-abdc23f4-4959-47fa-b34b-0829bd838ae0,DISK]]
+/data/taxi/taxi_zone_lookup.csv 12331 bytes, replicated: replication=3, 1 block(s):  Under replicated BP-361839436-172.29.0.7-1793355266756:blk_1073741825_1001. Target Replicas is 3 but found 2 live replica(s), 0 decommissioned replica(s), 0 decommissioning replica(s).
+0. BP-361839436-172.29.0.7-1793355266756:blk_1073741825_1001 len=12331 Live_repl=2  [DatanodeInfoWithStorage[172.29.0.2:9866,DS-abdc23f4-4959-47fa-b34b-0829bd838ae0,DISK], DatanodeInfoWithStorage[172.29.0.5:9866,DS-a13511a4-4968-49b1-af9d-4b33712c6021,DISK]]
+Status: HEALTHY
+ Under-replicated blocks:	2 (40.0 %)
+Status: HEALTHY
+### data still readable
+10dff36f5a2fc325274438bf361c70f0  /tmp/check.parquet
+10dff36f5a2fc325274438bf361c70f0  /datasets/data/taxi/yellow_tripdata_2024-01.parquet

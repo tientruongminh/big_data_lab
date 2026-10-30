@@ -1,0 +1,544 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
+\documentclass[
+  11pt,
+]{article}
+\usepackage{xcolor}
+\usepackage[margin=2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+    \setmainfont[]{DejaVu Serif}
+    \setsansfont[]{DejaVu Sans}
+    \setmonofont[Scale=0.85]{Liberation Mono}
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+\ifLuaTeX
+\usepackage[bidi=basic]{babel}
+\else
+\usepackage[bidi=default]{babel}
+\fi
+\babelprovide[main,import]{vietnamese}
+\ifPDFTeX
+\else
+\babelfont{rm}[]{DejaVu Serif}
+\fi
+% get rid of language-specific shorthands (see #6817):
+\let\LanguageShortHands\languageshorthands
+\def\languageshorthands#1{}
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{fvextra}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,breakanywhere,commandchars=\\\{\}}
+\fvset{breaklines,breakanywhere}
+\usepackage{float}
+\floatplacement{figure}{H}
+\renewcommand{\figurename}{Hình}
+\renewcommand{\tablename}{Bảng}
+\renewcommand{\contentsname}{Mục lục}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdflang={vi},
+  colorlinks=true,
+  linkcolor={Maroon},
+  filecolor={Maroon},
+  citecolor={Blue},
+  urlcolor={Blue},
+  pdfcreator={LaTeX via pandoc}}
+
+\author{}
+\date{}
+
+\begin{document}
+
+\section{L04 --- Ingestion: Sqoop và Spark JDBC từ PostgreSQL vào
+HDFS}\label{l04-ingestion-sqoop-vuxe0-spark-jdbc-tux1eeb-postgresql-vuxe0o-hdfs}
+
+Stack L04 gồm PostgreSQL (nguồn Olist, 6 bảng), HDFS, YARN, JobHistory,
+Sqoop 1.4.7 và Spark. Log gốc nằm trong các file \texttt{0*.txt}, ảnh ở
+\texttt{img/}.
+
+\subsection{File nộp}\label{file-nux1ed9p}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+File
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Nội dung
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{sqoop\_part1.sh} & Các lệnh Sqoop phần 1: explore, full import,
+TODO 1.2 (customers), append, lastmodified, saved job \\
+\texttt{spark\_jdbc\_ingest.py} & TODO 1--5: đọc JDBC song song, ghi
+Parquet phân vùng, incremental theo watermark, dedup snapshot \\
+\texttt{01}--\texttt{09\_*.txt} & Log từng bước, kể cả log query phía
+PostgreSQL \\
+\end{longtable}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/code_spark_jdbc_ingest.png}}
+\caption{spark\_jdbc\_ingest.py}
+\end{figure}
+
+\subsection{1. Nguồn dữ liệu}\label{nguux1ed3n-dux1eef-liux1ec7u}
+
+Có 6 bảng. \texttt{orders} có 5,000 dòng, \texttt{order\_seq} chạy từ 1
+đến 5000 và \texttt{max(updated\_at)} là \texttt{2018-09-08\ 09:48:29}.
+Theo trạng thái: delivered 4,793, shipped 102, \ldots{}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/01_stack_and_source.png}}
+\caption{stack and source}
+\end{figure}
+
+\subsection{2. Sqoop full import và cách chia
+split}\label{sqoop-full-import-vuxe0-cuxe1ch-chia-split}
+
+\texttt{sqoop\ import\ -\/-table\ orders\ -\/-split-by\ order\_seq\ -m\ 4}:
+
+\begin{itemize}
+\tightlist
+\item
+  Sqoop chạy \texttt{BoundingValsQuery}
+  (\texttt{SELECT\ MIN(order\_seq),\ MAX(order\_seq)\ FROM\ orders}),
+  được (1, 5000), rồi chia thành 4 khoảng đều nhau.
+\item
+  Log PostgreSQL ghi lại đúng 4 câu query:
+\end{itemize}
+
+\begin{longtable}[]{@{}lll@{}}
+\toprule\noalign{}
+Map & Điều kiện WHERE & Số dòng \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+0 &
+\texttt{order\_seq\ \textgreater{}=\ 1\ AND\ order\_seq\ \textless{}\ 1251}
+& 1,250 \\
+1 &
+\texttt{order\_seq\ \textgreater{}=\ 1251\ AND\ order\_seq\ \textless{}\ 2501}
+& 1,250 \\
+2 &
+\texttt{order\_seq\ \textgreater{}=\ 2501\ AND\ order\_seq\ \textless{}\ 3751}
+& 1,250 \\
+3 &
+\texttt{order\_seq\ \textgreater{}=\ 3751\ AND\ order\_seq\ \textless{}=\ 5000}
+& 1,250 \\
+\end{longtable}
+
+\begin{itemize}
+\tightlist
+\item
+  Đã chuyển 1.009 MB trong 25.23 s (thời gian MR); tổng thời gian lệnh
+  CLI là 28.5 s.
+\item
+  4 file \texttt{part-m-0000x} chia đều nhau.
+\end{itemize}
+
+\pandocbounded{\includegraphics[keepaspectratio]{img/02_sqoop_full_import_orders.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/05_postgres_log_sqoop_sql.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/24_ui_jobhistory_orders_full_4maps.png}}
+
+\subsubsection{\texorpdfstring{TODO 1.2:
+\texttt{customers\ -\/-split-by\ customer\_zip\_code\_prefix\ -m\ 4}}{TODO 1.2: customers -\/-split-by customer\_zip\_code\_prefix -m 4}}\label{todo-1.2-customers---split-by-customer_zip_code_prefix--m-4}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Bảng / cột split
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+part-m-00000
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+part-m-00001
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+part-m-00002
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+part-m-00003
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{orders} / \texttt{order\_seq} (1--5000) & 1,250 & 1,250 & 1,250
+& 1,250 \\
+\texttt{customers} / \texttt{customer\_zip\_code\_prefix} (1014--95099)
+& \textbf{2,450} & 1,146 & \textbf{427} & 977 \\
+\end{longtable}
+
+Khoảng zip được chia đều tại 24536, 48057 và 71578, nhưng zip code tập
+trung ở vùng São Paulo (01xxx--19xxx). Vì vậy split đầu nhận gần một nửa
+số dòng, còn split thứ ba chỉ nhận 427 dòng: \textbf{data skew}.
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/03_sqoop_customers_skew_TODO1.2.png}}
+\caption{customers skew}
+\end{figure}
+
+\subsection{3. Sqoop incremental: append, lastmodified, saved job,
+merge,
+export}\label{sqoop-incremental-append-lastmodified-saved-job-merge-export}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Bước
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Kết quả
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Append, lần nạp đầu & lower 0, upper 5000 → 5,000 dòng; Sqoop gợi ý
+\texttt{-\/-last-value\ 5000} \\
+Lastmodified, baseline & 5,000 dòng; last-value
+\texttt{2026-10-30\ 10:45:15.732385} \\
+Saved job \texttt{orders\_incr} &
+\texttt{incremental.last.value\ =\ 5000} lưu trong metastore của
+Sqoop \\
+\texttt{simulate\_changes} \#1 & tạo \texttt{order\_seq} 5001--5003; cập
+nhật đơn 139 và 278 thành \texttt{delivered} \\
+\texttt{sqoop\ job\ -\/-exec\ orders\_incr} & lower 5000, upper 5003 →
+lấy \textbf{3} dòng; \texttt{last.value} thành 5003; tổng 5,003 dòng \\
+Lastmodified + \texttt{-\/-merge-key\ order\_id} & lấy \textbf{5} dòng
+(3 mới + 2 cập nhật); merge job → một \texttt{part-r-00000} gồm 5,003
+dòng, không trùng \\
+\texttt{sqoop\ export} ngược về PostgreSQL & 5,000 record \\
+\end{longtable}
+
+Saved job tự lưu \texttt{last.value}, nên lần chạy sau chỉ đọc phần mới.
+Append chỉ nhìn thấy 3 dòng INSERT. Lastmodified thấy thêm 2 dòng
+UPDATE, và merge-key gộp mỗi \texttt{order\_id} về bản mới nhất.
+
+\pandocbounded{\includegraphics[keepaspectratio]{img/04_sqoop_incremental_and_saved_job.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/06_sqoop_after_changes_merge_export.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/20_ui_yarn_sqoop_jobs.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/21_ui_jobhistory_sqoop.png}}
+
+\subsection{4. Spark JDBC: đọc song song và ghi Parquet (TODO
+1--3)}\label{spark-jdbc-ux111ux1ecdc-song-song-vuxe0-ghi-parquet-todo-13}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Cách đọc
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Số partition
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Thời gian \texttt{count()}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Phân bố dòng
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Naive (không có \texttt{partitionColumn}) & 1 & 1.17 s & tất cả 5,003
+dòng trong 1 task \\
+\texttt{partitionColumn=order\_seq}, bounds 1..5003, 4 partitions & 4 &
+0.22 s & 1,251 / 1,250 / 1,250 / 1,252 \\
+\texttt{partitionColumn=order\_purchase\_timestamp} (2017-01-01 →
+2018-09-01) & 4 & --- & 782 / 1,116 / 1,419 / 1,686 \\
+\end{longtable}
+
+\begin{itemize}
+\item
+  Spark tự sinh 4 câu SQL (log PostgreSQL):
+  \texttt{WHERE\ "order\_seq"\ \textless{}\ 1252\ or\ "order\_seq"\ is\ null},
+  \ldots{} , \texttt{WHERE\ "order\_seq"\ \textgreater{}=\ 3752}.
+  Partition đầu và cuối để \textbf{hở}, nên mọi dòng ngoài bounds vẫn
+  được đọc.
+\item
+  Split theo timestamp bị lệch vì số đơn tăng dần theo thời gian.
+\item
+  Ghi Parquet \texttt{partitionBy("purchase\_month")}:
+
+  \begin{itemize}
+  \tightlist
+  \item
+    mất 3.10 s, ra 21 thư mục tháng, đủ 5,003 dòng;
+  \item
+    query lọc
+    \texttt{purchase\_month\ =\ \textquotesingle{}2018-08\textquotesingle{}}
+    cho thấy \texttt{PartitionFilters} trong physical plan, tức là có
+    partition pruning.
+  \end{itemize}
+\item
+  Các bảng khác:
+
+  \begin{longtable}[]{@{}ll@{}}
+  \toprule\noalign{}
+  Bảng & Số dòng \\
+  \midrule\noalign{}
+  \endhead
+  \bottomrule\noalign{}
+  \endlastfoot
+  customers & 5,003 \\
+  order\_items & 5,852 \\
+  order\_payments & 5,472 \\
+  products & 1,500 \\
+  sellers & 312 \\
+  \end{longtable}
+\item
+  Toàn bộ \texttt{spark-submit\ ...\ full} chạy hết 21.2 s.
+\end{itemize}
+
+\pandocbounded{\includegraphics[keepaspectratio]{img/07_spark_full.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/08_postgres_log_spark_sql.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/22_ui_spark_full_jobs.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/23_ui_spark_full_stages_4tasks.png}}
+\pandocbounded{\includegraphics[keepaspectratio]{img/09_spark_output_hdfs.png}}
+
+\subsubsection{So sánh Sqoop và Spark JDBC
+(orders)}\label{so-suxe1nh-sqoop-vuxe0-spark-jdbc-orders}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Sqoop (MapReduce)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Spark JDBC
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Song song & \texttt{-m\ 4}, chia theo MIN/MAX của \texttt{-\/-split-by}
+& \texttt{numPartitions=4}, chia theo
+\texttt{lowerBound}/\texttt{upperBound} do mình truyền vào \\
+Thời gian & 25.2 s MR job (28.5 s cả lệnh) & 3.10 s ghi Parquet (21.2 s
+cả \texttt{spark-submit} 7 bảng, tính cả khởi động JVM/YARN) \\
+Định dạng ra & Text CSV, 1.0 MB & Parquet Snappy phân vùng theo tháng,
+680.4 KB \\
+Incremental & Có sẵn (\texttt{-\/-incremental}, saved job, merge) & Phải
+tự viết: watermark, change log, dedup \\
+Biến đổi trong lúc nạp & Không & Có (\texttt{withColumn},
+\texttt{partitionBy}, \ldots) \\
+\end{longtable}
+
+Sqoop chậm chủ yếu vì phải khởi động một MR job riêng cho mỗi bảng.
+Spark dùng chung một SparkSession cho cả 7 bảng và ghi thẳng ra định
+dạng cột. Sqoop 1 cũng đã ngừng phát triển (Apache attic), nên ngày nay
+thường dùng Spark JDBC hoặc CDC.
+
+\subsection{5. Spark incremental: watermark, change log, snapshot (TODO
+4--5)}\label{spark-incremental-watermark-change-log-snapshot-todo-45}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Lần chạy
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Cửa sổ watermark
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Dòng đọc được
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Change log
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Snapshot
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+1 (lần đầu) & \texttt{(1970-01-01,\ 2026-10-30\ 10:51:08.121235{]}} &
+5,003 & 5,003 & 5,003 \\
+sau \texttt{simulate\_changes} \#2 (tạo 5004--5006, cập nhật 337 và 355)
+& & & & \\
+2 & \texttt{(10:51:08.121235,\ now{]}} & \textbf{5} & 5,008 &
+\textbf{5,006} \\
+3 (không có thay đổi) & \texttt{(…,\ now{]}} & \textbf{0} & 5,008 &
+5,006 \\
+\end{longtable}
+
+\begin{itemize}
+\tightlist
+\item
+  Change log chỉ append và giữ mọi phiên bản: 5,003 + 5 = 5,008.
+\item
+  Snapshot dùng \texttt{row\_number()} theo \texttt{order\_id}, sắp
+  \texttt{updated\_at\ DESC,\ \_ingested\_at\ DESC}, nên mỗi đơn chỉ còn
+  bản mới nhất: 5,006 đơn.
+\item
+  Lần chạy thứ ba đọc 0 dòng, nghĩa là watermark được lưu đúng và
+  pipeline idempotent.
+\end{itemize}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{img/10_spark_incremental_3runs.png}}
+\caption{spark incremental}
+\end{figure}
+
+\subsection{Trả lời checkpoint}\label{trux1ea3-lux1eddi-checkpoint}
+
+\textbf{Q1.} Trước khi import, Sqoop chạy bounding query
+\texttt{SELECT\ MIN(order\_seq),\ MAX(order\_seq)\ FROM\ orders} (thấy
+rõ trong log PostgreSQL), được (1, 5000). Nó chia khoảng này thành
+\texttt{-m\ 4} đoạn \textbf{bằng nhau về giá trị}, mỗi đoạn rộng (5000 −
+1)/4 ≈ 1250, và mỗi map task chạy một câu
+\texttt{SELECT\ …\ WHERE\ order\_seq\ \textgreater{}=\ lo\ AND\ order\_seq\ \textless{}\ hi}.
+Đoạn cuối dùng \texttt{\textless{}=} để lấy cả MAX. Vì
+\texttt{order\_seq} dày đặc từ 1 đến 5000, mỗi map nhận đúng 1,250 dòng.
+
+\textbf{Q2.} Sqoop chia theo \textbf{khoảng giá trị}, không theo số
+dòng. Zip code của khách Olist tập trung ở São Paulo (01xxx--19xxx), nên
+đoạn {[}1014, 24536) nhận 2,450 dòng còn đoạn {[}48057, 71578) chỉ có
+427 dòng. Task chậm nhất quyết định thời gian của cả job.
+\texttt{customer\_id} là chuỗi hash dạng text. Sqoop mặc định từ chối
+split theo cột text và báo lỗi, trừ khi bật
+\texttt{-Dorg.apache.sqoop.splitter.allow\_text\_splitter=true}. Kể cả
+khi bật, việc chia theo thứ tự chuỗi vẫn kém tin cậy (phụ thuộc
+collation), và split có thể lệch hoặc rỗng. Nên chọn một cột số, phân bố
+đều và có index, như \texttt{order\_seq}.
+
+\textbf{Q3.} \textbf{Có.} \texttt{lowerBound}/\texttt{upperBound} chỉ
+dùng để tính \textbf{bước chia} (stride), \textbf{không phải bộ lọc}.
+Spark sinh partition đầu là
+\texttt{order\_seq\ \textless{}\ 1252\ OR\ order\_seq\ IS\ NULL} và
+partition cuối là \texttt{order\_seq\ \textgreater{}=\ 3752}, không có
+cận trên. Vì vậy dòng \texttt{order\_seq\ =\ 9,999} vẫn được đọc và rơi
+vào \textbf{partition cuối}. Nếu nhiều dòng nằm ngoài bounds, partition
+đầu hoặc cuối sẽ phình to và gây skew. Phải lấy bounds thật (MIN/MAX)
+trước khi đọc, như script đã làm (\texttt{bounds\ 1..5003}).
+
+\textbf{Q4.} - \textbf{Chốt cận trên trước khi đọc:}
+\texttt{wm\_new\ =\ now()} được lấy \emph{trước} khi đọc, và query dùng
+\texttt{updated\_at\ \textgreater{}\ wm\_old\ AND\ updated\_at\ \textless{}=\ wm\_new}.
+Nếu lấy \texttt{now()} \emph{sau} khi đọc, những dòng được cập nhật
+\textbf{trong lúc} đang đọc sẽ có \texttt{updated\_at} nằm trước
+watermark mới mà không nằm trong dữ liệu đã đọc. Lần chạy sau sẽ bỏ qua
+chúng vĩnh viễn: \textbf{mất dữ liệu}. Cận trên cố định cũng giúp các
+partition JDBC song song nhìn cùng một cửa sổ, và lần sau bắt đầu đúng
+từ chỗ lần này dừng. - \textbf{Chỉ lưu watermark sau khi ghi thành
+công:} nếu job chết giữa chừng, watermark cũ vẫn còn và lần chạy lại sẽ
+đọc lại cả cửa sổ. Như vậy dữ liệu được giao \textbf{at-least-once}: có
+thể trùng nhưng không mất. Phần trùng được dedup idempotent bằng
+\texttt{row\_number()} theo \texttt{order\_id} khi dựng snapshot. Nếu
+lưu watermark trước khi ghi mà ghi thất bại, cửa sổ đó sẽ bị bỏ qua mãi
+mãi.
+
+\textbf{Q5.} \texttt{append} chỉ dựa vào
+\texttt{order\_seq\ \textgreater{}\ last\_value}, nên chỉ bắt được
+\textbf{INSERT} (lần chạy job chỉ lấy 3 dòng mới). \texttt{lastmodified}
+dựa vào \texttt{updated\_at\ \textgreater{}\ last\_value}, nên bắt được
+cả \textbf{INSERT và UPDATE} (lấy 5 dòng: 3 mới + 2 đơn 139 và 278). Cần
+\texttt{-\/-merge-key} để gộp bản cũ với bản mới. \textbf{Không chế độ
+nào bắt được DELETE}: dòng đã xoá thì không còn trong bảng để query ra.
+
+\textbf{Q6.} Watermark trên \texttt{updated\_at} \textbf{không} giải
+quyết được: 1. \textbf{DELETE}: dòng bị xoá không bao giờ xuất hiện
+trong query, nên bản sao trên HDFS giữ dữ liệu ``ma'' (trừ khi ứng dụng
+dùng soft delete). 2. \textbf{Các lần UPDATE trung gian}: nếu một dòng
+đổi nhiều lần giữa hai lần chạy (ví dụ \texttt{shipped} →
+\texttt{delivered} → \texttt{canceled}), ta chỉ thấy trạng thái cuối và
+mất lịch sử. 3. \textbf{\texttt{updated\_at} không đáng tin}: - ứng dụng
+quên cập nhật cột, hoặc ghi bằng giờ của app server lệch đồng hồ; -
+transaction dài commit \emph{sau} khi watermark đã vượt qua timestamp
+của nó, nên dòng bị bỏ sót. 4. \textbf{Tải lên nguồn}: mỗi lần chạy là
+một query quét theo \texttt{updated\_at} (cần index), độ trễ bằng chu kỳ
+poll.
+
+\textbf{CDC} (Debezium, L08) không query bảng mà đọc \textbf{transaction
+log (WAL)} của PostgreSQL qua logical replication. Mọi INSERT, UPDATE và
+DELETE được phát ra thành event theo đúng thứ tự commit, kèm ảnh trước
+và sau. Không phụ thuộc cột \texttt{updated\_at}, gần như không tạo tải
+query, và độ trễ chỉ vài giây.
+
+\textbf{Q7.} \texttt{-m\ 50} hoặc \texttt{numPartitions=50} mở
+\textbf{50 kết nối đồng thời}, mỗi kết nối chạy một range scan. Như vậy
+dễ vượt \texttt{max\_connections} (PostgreSQL mặc định 100), làm ứng
+dụng production không lấy được kết nối. Nó cũng tranh CPU, I/O và buffer
+cache với tải OLTP, và với bảng nhỏ (5,000 dòng) thì mỗi task chỉ có
+\textasciitilde100 dòng, chi phí khởi tạo lấn át lợi ích. Thực tế nên
+giới hạn khoảng 4--8 kết nối, đọc từ \textbf{read replica} hoặc ngoài
+giờ cao điểm, và đặt \texttt{fetchsize} hợp lý.
+
+\end{document}

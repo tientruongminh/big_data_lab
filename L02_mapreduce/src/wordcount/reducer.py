@@ -18,8 +18,12 @@ current_word, current_count = None, 0
 for line in sys.stdin:
     word, _, count = line.rstrip("\n").partition("\t")
     count = int(count)
-    # TODO 2: if word == current_word, add to the running total;
-    #         otherwise print the previous word's total (if any) and start a new one.
-    pass
+    if word == current_word:
+        current_count += count
+    else:
+        if current_word is not None:
+            print(f"{current_word}\t{current_count}")
+        current_word, current_count = word, count
 
-# TODO 3: do not forget to print the LAST word's total here.
+if current_word is not None:  # the last word's total
+    print(f"{current_word}\t{current_count}")

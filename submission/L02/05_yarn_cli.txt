@@ -1,0 +1,12 @@
+$ yarn application -list -appStates FINISHED
+Total number of applications (application-types: [], states: [FINISHED] and tags: []):3
+                Application-Id	    Application-Name	    Application-Type	      User	     Queue	             State	       Final-State	       Progress	                       Tracking-URL
+application_1793355278127_0003	      zones_combiner	           MAPREDUCE	      root	root.default	          FINISHED	         SUCCEEDED	           100%	http://historyserver:19888/jobhistory/job/job_1793355278127_0003
+application_1793355278127_0001	           wordcount	           MAPREDUCE	      root	root.default	          FINISHED	         SUCCEEDED	           100%	http://historyserver:19888/jobhistory/job/job_1793355278127_0001
+application_1793355278127_0002	    zones_nocombiner	           MAPREDUCE	      root	root.default	          FINISHED	         SUCCEEDED	           100%	http://historyserver:19888/jobhistory/job/job_1793355278127_0002
+$ mapred job -list all
+Total jobs:3
+                  JobId	                                 JobName	     State	     StartTime	    UserName	       Queue	  Priority	 UsedContainers	 RsvdC
+ job_1793355278127_0003	                          zones_combiner	 SUCCEEDED	 1793355970353	        root	root.default	   DEFAULT	            N/A	      
+ job_1793355278127_0001	                               wordcount	 SUCCEEDED	 1793355876697	        root	root.default	   DEFAULT	            N/A	      
+ job_1793355278127_0002	                        zones_nocombiner	 SUCCEEDED	 1793355937120	        root	root.default	   DEFAULT	            N/A	      
