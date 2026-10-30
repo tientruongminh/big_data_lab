@@ -1,10 +1,10 @@
-# Thông tin trang bìa — sửa các dòng "……" rồi chạy lại: bash tools/build_latex.sh
-truong: "TRƯỜNG ĐẠI HỌC ……"
-khoa: "KHOA ……"
+# Thông tin trang bìa; sửa rồi chạy lại: bash tools/build_latex.sh
+truong: "Trường Đại học Khoa học Tự nhiên, ĐHQG-HCM"
+khoa: "Khoa Toán - Tin học"
+logo: "/data/logo-hcmus.png"
 mon: "Kỹ thuật dữ liệu (Data Engineering)"
-gvhd: "……"
-sinhvien: "Trương Minh Tiến"
-mssv: "……"
-lop: "……"
-noi: "……"
+sinhvien: "Nguyễn Thị Huyền Trang"
+mssv: "23280092"
+lop: "23KDL"
+noi: "TP. Hồ Chí Minh"
 ngay: "Tháng 10 năm 2026"

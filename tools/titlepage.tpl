@@ -3,7 +3,13 @@
 {\large\MakeUppercase{$truong$}\par}
 {\large\bfseries\MakeUppercase{$khoa$}\par}
 \vspace{0.4cm}\rule{0.55\textwidth}{0.6pt}\par
+$if(logo)$
+\vspace{1.2cm}
+\includegraphics[width=4.5cm]{$logo$}\par
+\vspace{1.2cm}
+$else$
 \vspace{3cm}
+$endif$
 {\Large\bfseries BÁO CÁO THỰC HÀNH\par}
 \vspace{0.3cm}
 {\large Môn học: $mon$\par}
@@ -15,7 +21,9 @@ $endif$
 {\LARGE\bfseries $title$\par}
 \vfill
 \begin{tabular}{@{}ll@{}}
+$if(gvhd)$
 Giảng viên hướng dẫn: & $gvhd$ \\[2pt]
+$endif$
 Sinh viên thực hiện:  & $sinhvien$ \\[2pt]
 Mã số sinh viên:      & $mssv$ \\[2pt]
 Lớp:                  & $lop$ \\
